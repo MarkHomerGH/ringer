@@ -125,6 +125,14 @@ checks and raw logs support — no vibes, no worker self-reports.
   failure are harness artifacts; do not count them against the model. Fix
   opencode, then rebook the audition (the docs task went to codex gpt-5.5,
   which passed on attempt 2).
+- 2026-08-12 (later, same session) RESOLVED: root cause was missing
+  OpenRouter credentials on homer-studio — no auth.json, no env var, no
+  provider entry; every openrouter/... call died before opencode logged
+  anything. Mark ran `opencode auth login`; the Ringer PROBE-OK re-run
+  passed first try (5.8s, 10.6k tokens). The engine is healthy; the real
+  audition rides the next session's first low-stakes lane, alongside the
+  authorized qwen code-feature re-audition (see the 2026-08-09 scoreboard
+  correction above).
 
 - The cheap-intelligence default (~$0.74/M in, $2.33/M out, 2026-07 —
   20-30x cheaper output than frontier coding models). Reliable on
