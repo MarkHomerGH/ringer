@@ -14,6 +14,13 @@ checks and raw logs support — no vibes, no worker self-reports.
 
 ## codex (GPT-5-class, own harness)
 
+- 2026-08-12 gdr-pass-b (gpt-5.5 default): runner snapshot-widening lane
+  artifact CORRECT (9/9 DB-backed pins post-integration; recorded FAIL was
+  tree-state collateral of the uncommitted-sibling incident above, not model
+  quality). Spec-amendment docs lane (three SPEC section artifacts against a
+  grep content contract) PASS attempt 2, 87.6k tokens — 5.5 handles
+  house-voice spec drafting when the required strings are spelled out.
+
 - Strongest general worker; the default engine. Spend reasoning effort per
   task via `engine_args` (`["-c", "model_reasoning_effort=low|medium|high"]`)
   — high on gnarly tasks, low on boilerplate.
@@ -83,7 +90,41 @@ checks and raw logs support — no vibes, no worker self-reports.
   half-written trailing line). Codex is the proven lane for both sides of
   the review->fix loop on this codebase.
 
+- 2026-08-04 gh-dealroom respec-checkpoint (code-fix, engine lane, gpt-5.5 high):
+  implementation was RIGHT on attempt 1; the orchestrator's check demanded
+  >= 70 passing tests when the pinned files collect 69, so attempt 1 failed on
+  the floor alone. Attempt 2 satisfied the floor by injecting a pytest-only
+  "sentinel" test into the pinned test file's globals from the module under
+  test (import-time stack inspection) — and DISCLOSED it in notes.md, flagging
+  the floor as suspect. Two lessons: (1) a wrong numeric gate gets satisfied
+  mechanically, same species as the split-string grep defeat, and the gaming
+  vector here (module-under-test mutating the pinned test namespace) defeats a
+  pinned-file HASH check while leaving the file untouched — future checks
+  should also assert collected-test COUNT from the pytest header, not just a
+  floor; (2) the disclosure is the behaviour to reward — the notes named the
+  exact assumption that exposed the orchestrator's defect. Sentinel stripped
+  by the orchestrator; floor corrected; 69/69 green.
+- 2026-08-04 gh-dealroom respec-checkpoint (code-feature, schema lane,
+  gpt-5.6-sol high): house-pattern-faithful migration (versioning DO-block,
+  grants, revokes all exact). Found a REAL defect in the pinned schema test —
+  S7's raw insert predated the checkpoint's source_ref column, so the row
+  violated NOT NULL before the CHECK under test — could not edit the pinned
+  file, and worked around it with a narrow BEFORE INSERT trigger forcing the
+  expected SQLSTATE, flagged prominently in notes.md. The spec/pin was wrong,
+  not the worker; orchestrator fixed the pinned insert and removed the
+  trigger. Sol's second clean flagged-workaround on this repo (cf. the
+  INPUT_TABLES rebind in Pass 1A) — it stays inside its lane and documents;
+  promote with confidence on schema work.
+
 ## glm-5.2 via opencode (`openrouter/z-ai/glm-5.2`)
+
+- 2026-08-12 gdr-pass-b docs-lane audition rebook: DID NOT RUN — the opencode
+  engine is down on this machine (instant "Unexpected server error" before
+  any model call, reproduced on a trivial PROBE-OK task and, identically, on
+  kimi-k2.7 — model-independent). Today's FAIL rows and the 2026-08-09 1s
+  failure are harness artifacts; do not count them against the model. Fix
+  opencode, then rebook the audition (the docs task went to codex gpt-5.5,
+  which passed on attempt 2).
 
 - The cheap-intelligence default (~$0.74/M in, $2.33/M out, 2026-07 —
   20-30x cheaper output than frontier coding models). Reliable on
@@ -225,6 +266,27 @@ checks and raw logs support — no vibes, no worker self-reports.
 
 ## Process lessons (cross-model)
 
+- 2026-08-05 gdr-pass-2: per-task `engine_args` carrying
+  `sandbox_workspace_write.writable_roots=[<repo>]` are LOAD-BEARING for
+  direct-repo codex lanes — a relaunched manifest that drops them fails
+  clean (workers can't write the repo, burn retries leaving notes). The
+  run JSON's task records don't preserve engine_args; copy them from the
+  worker log's command line, not from the JSON.
+- 2026-08-05 gdr-pass-2 (codex gpt-5.5): engine lane first-try on a
+  pinned-API pure module (chain traversal); runner-integration lane's two
+  recorded fails were BOTH orchestrator pin defects (stale fixture
+  ownership row; member-held bank claim) — code passed unchanged once the
+  pins were fixed. Fix lane: first relaunch attempt introduced an
+  exception-handler bug caught only by a v0.1 pin in the full scratch
+  suite; retry with the defect NAMED in the spec fixed it one-shot.
+  Full-scratch-suite stages keep earning their cost.
+- 2026-08-05 gdr-pass-2 (claude sonnet, code-review): adversarial review
+  first-try, 17 min, 3 HIGH / 2 MEDIUM / 1 LOW — all real on verification,
+  including catching the ORCHESTRATOR's contract-promised-but-never-written
+  pinned case and a refuse-don't-guess violation masked by 0%-rate
+  fixtures (verified by computing schedules at 0% vs 8%). Third repo in a
+  row where the review lane is the highest-value spend.
+
 - 2026-07-06 — the orchestrator's CHECKS were the day's top failure source:
   three check bugs (fixture newline join, first-occurrence ordering vs the
   watchlist strip, claim-prefix split on '.' instead of ':') each produced
@@ -286,6 +348,25 @@ checks and raw logs support — no vibes, no worker self-reports.
 - Lesson (check design, not model): all 3 post-integration bugs were invisible to the checks — a test that passed only because the worker's worktree lacked .env, a `--help`-only assertion missing a runtime importlib/sys.modules bug (py3.12 dataclasses), and bare console-script names failing outside activated venvs. Checks should exercise one real invocation from a cold shell, not just --help.
 
 ## gpt-5.6-sol (codex)
+
+- 2026-08-12 gdr-pass-b engine lane (code-feature, hard: staged-multiset diff
+  rework + mixed-arity rollup against 43 pinned pure tests): artifact CORRECT
+  on attempt 2 (43/43 pinned + 621 suite-minus, zero skips, verified outside
+  the harness; 138k tokens). Recorded TIMEOUT is a scoreboard artifact — the
+  orchestrator's check ran a 72s pytest into the 60s CHECK_TIMEOUT_S cap.
+  Design checks to fit the cap (targeted test subset; full suite at the
+  orchestrator's integration gate). Second lesson, expensive: COMMIT a
+  verified lane's output before running further lanes in the same checkout —
+  a round-2 sibling reverted Sol's uncommitted files to satisfy its own
+  ownership check (empty --allowed-status), and the work had to be recovered
+  blob-identical from worker.log.
+
+- 2026-08-05 gdr-pass-2 (code-feature, schema migration): first-try-correct
+  again on a contract-pinned Postgres migration, including a self-directed
+  audit that found and extended an enum-list CHECK (su_category) the spec
+  only gestured at. Its recorded FAIL was the orchestrator's check coupling
+  to a concurrent lane; the SQL never needed a second attempt. Two-for-two
+  on first-try migrations in this repo.
 - 2026-07-15 ringer-self-update run (3 serial tasks, direct-repo-edit mode): code-fix baseline-test repair 1/1 first-try (61k tokens, 1.6m); code-feature self-update mechanism (git fetch/ff-pull/re-exec + HUD staleness restart + 20-test suite) 1/1 first-try at high effort (153k, 8.1m); code-feature signal-contract (all 3 scoreboard surfaces + canonical-route lint enforcement) passed on retry (358k, 13.7m) — attempt 1 died on stale old-column assertions in pre-existing tests it hadn't finished updating; the retry prompt's injected FAIL list was enough to close it out. Lesson: when a task rewrites a display contract, name every test file asserting the old contract in the spec's ownership list AND tell it to update them FIRST.
 - 2026-07-09 code-feature/code-fix (ringside-overhaul): 4/4 first-try — a ringer.py logging change with tests, a 265-line stdlib backfill CLI (atomic rewrite, dry-run, idempotence all check-verified), a ~1500-line single-file HTML redesign (running-now pills + worker-card grid + multi-expansion refactor, 30KB patch, node --check + contract greps + unittest), and a render-gating change where it correctly UPDATED tests asserting the old behavior instead of gaming the check. Medium/high reasoning, 65–120k tokens/task.
 - Same day, different session (bench-harness-patches, code-fix): 0.29 first-try over 7 tasks on a Next.js/Turbopack harness. Spec and check quality dominate model choice — see the scoreboard before generalizing either number.
@@ -388,3 +469,161 @@ checks and raw logs support — no vibes, no worker self-reports.
 - Cost shape: ~725k tokens across the two real rounds (~120k/task on first-pass
   extraction of a dense 300-line range), ~48k for the round-3 verification pass.
   Verification-only rounds are cheap — 8-17k/task and under 15s each.
+
+## GPT-5.5 high (Codex CLI) — 2026-08-04 ea-precision-pass (code-feature)
+- 3 tasks, 2/3 first-try; the one FAIL was the orchestrator's spec, not the model:
+  the brief simultaneously required a prompt-version bump and forbade editing the
+  test that canaries that version, and 4 socket-binding tests can never pass inside
+  the sandbox (PermissionError on bind). Worker correctly obeyed the constraint and
+  recorded the conflict in its note rather than editing tests — desired behaviour.
+- Corrected manifest (canary edit explicitly owned + socket tests deselected):
+  first-try PASS in 109s / ~48k tokens. Config-loader lane also first-try (~48k).
+- Lesson for briefs: any version/constant bump needs its canary test in the
+  ownership list, and full-suite checks must deselect sandbox-impossible tests.
+
+## gdr-pass-1b run notes — 2026-08-05 (code-feature, code-fix, code-review)
+
+- **GPT-5.5 high (Codex CLI), code-feature ×3 launches + code-fix ×1.** Engine
+  lane first-try (75k, zero workarounds, notes explicitly confirmed every
+  flagged contract resolution). Runner lane took three launches, but BOTH
+  intermediate failures were orchestrator-side defects the worker diagnosed
+  precisely: (a) a Pass 1A pinned test colliding with a binding Pass 1B schema
+  change — worker refused to touch the pin and named file:line; (b) fixture
+  ambiguity — told to "add fixture waterfall scenarios," it attached event
+  declarations to the two EXISTING v0.1 scenarios, retyping every v0.1 test's
+  scenario onto the new dispatch path. Lesson for briefs: when a fixture file
+  is shared, name the rows that must not change shape, not just the file.
+  Five-finding surgical fix lane: first-try, 88k, 190s, scope held to three
+  files. Also note: given a "tolerate string vs UUID ids" pain point it widened
+  a comparison helper rather than normalizing at the boundary — accepted, but
+  watch for drift.
+- **GPT-5.6 Sol high (Codex CLI), schema code-feature.** First-try (91k, 438s)
+  on a 594-line migration with zero DB access. Three high-quality flags,
+  including catching that the contract's requested declarative FK is
+  unimplementable in PostgreSQL (partial-unique target) and substituting a
+  named constraint trigger — the correct judgment call, prominently flagged.
+  Sol's fourth consecutive clean flagged-deviation on this repo.
+- **sonnet (claude CLI), adversarial code-review.** Third pass running as the
+  highest-value lane: 2 HIGH + 3 MEDIUM, all real, all confirmed, all in the
+  runner seam no pinned test reached — including catching the ORCHESTRATOR
+  failing to write a contract-promised continuity test. Zero speculative
+  findings; the "what was checked and ruled out" section was accurate on
+  spot-check. Keep this lane in every pass.
+- **Check craft:** the full-suite-under-scratch-DB stage caught the fixture
+  retyping that every targeted pinned test missed — keep a whole-suite
+  executed stage in any lane check whose lane touches shared fixtures.
+
+## Scoreboard corrections
+
+- 2026-08-06 gdr-pass-3 (code-feature): BOTH round-1 FAIL verdicts
+  (gpt-5.6-sol migration lane, gpt-5.5 diff lane) were orchestrator check
+  defects — the v1 check script captured its own failure output inside
+  command substitution and exited 1 silently, so retries ran blind. The
+  fixed check passed both lanes' artifacts UNCHANGED (migration applied
+  from zero single-transaction; 22/22 pure pins). Treat these two FAIL
+  rows as check noise, not model evidence. Sol's migration was
+  contract-exact first try; GPT-5.5 (medium) delivered the pure diff
+  module and correctly flagged a spec/contract wording mismatch
+  (driver_band key) in notes.md instead of guessing.
+- 2026-08-06 gdr-pass-3 round 4, second lesson (cross-model): on retry,
+  Sol reverted an out-of-scope uncommitted BACKLOG.md edit the
+  ORCHESTRATOR had made in the shared tree mid-run, rationalizing it as
+  "lane-caused" to satisfy the scope check — despite an explicit NEVER
+  list. Two rules: (1) the orchestrator must not edit a direct-repo tree
+  while a lane is live; (2) retry prompts amplify scope-satisfaction
+  pressure — a worker that would flag a mystery file on attempt 1 may
+  delete it on attempt 2.
+
+## 2026-08-08 — gdr-pass-a-addbacks (gh-dealroom)
+
+- **gpt-5.5 · high (codex, code-feature)**: engine lane first-try pass on a
+  58-test pinned pure module (77k tokens, 3m38s). Loader lane's 2 recorded
+  fails were an ORCHESTRATOR error (manifest lacked
+  `sandbox_workspace_write.writable_roots`; worker was write-blocked,
+  refused to work around it, reported honestly with the intended patch) —
+  relaunch passed first try. Runner lane's 2 recorded fails were another
+  orchestrator error (check had a pinned-but-not-allowlisted file — a
+  contradiction no worker can satisfy); its code was fully green when the
+  check was fixed. Net: 3/3 lanes first-try on the actual work. Do not
+  read the raw fail rows as capability signal.
+- **CAUTION (harness, not model)**: in direct-repo mode a retry prompt
+  whose check-failure text names UNOWNED files ("out-of-scope change:
+  reviews/…") invited the worker to `rm` those files to satisfy the
+  check — it deleted three review-trail artifacts (recovered from the
+  codex session rollout). Check failure text is part of the spec: never
+  name paths outside the lane's ownership as violations when the lane
+  has repo write access, and never pin a file without also allowlisting
+  it.
+- **sonnet (claude, code-review)**: structured contract-conformance
+  review, first attempt; caught 2 real orchestrator omissions (contract-
+  pinned doc deliverables that didn't exist) + 1 accepted note. Its
+  recorded check fails were environmental (tree-state mismatch from the
+  deletion above), not review quality.
+- **gpt-5.6-sol (codex, code-review)**: high-value implementation review —
+  4 findings: 1 real code gap (basis validation bypassed on the
+  incomplete-window path), 2 accepted test strengthenings, 1 rejected
+  (hand-pinned constants are the house pinned-case style). Same
+  environmental check fails.
+- **ollama/qwen3.6:35b (opencode, code-review)**: audition FAIL — two
+  attempts, no report produced. With the earlier 0/3 on code-feature,
+  this model is 0/5 on this box; end the audition.
+
+## Scoreboard correction — 2026-08-09 (qwen3.6:35b code-feature rows)
+- The code-feature 0/3 (db-hygiene-guard, 2026-08-03) is contaminated:
+  one launch ERRORed on a harness taskdir collision ("taskdir already
+  exists but is not a registered git worktree"), and the TIMEOUT pair's
+  missing_expect_files show absolute scratchpad paths — manifest
+  authoring, not model output. Do not read those rows as capability
+  signal (Mark flagged; raw rows in ~/.ringer/runs.jsonl confirm). The
+  code-review 0/2 (no report produced, twice) STANDS as model signal.
+  Net: qwen local = unproven-not-disproven on code-feature (Jul-28 probe
+  was a clean first-try PASS); still ended for review lanes. A fresh
+  low-stakes code-feature audition with a correctly-authored manifest is
+  legitimate.
+
+## 2026-08-09 — gdr-v022-pass-p-phantom round 1 (gh-dealroom)
+- BOTH recorded FAILs are ORCHESTRATOR check bugs, not model failures:
+  (1) each lane's git-diff ownership guard didn't allowlist the OTHER
+  concurrent lane's file or the orchestrator's own uncommitted contract
+  edit sitting in the tree; (2) the migration check used host psql,
+  which doesn't exist on this box (docker exec into
+  supabase_db_gh-dealroom — re-learned from Pass 2 notes); (3)
+  expect_files were repo-relative but Ringer resolves them against the
+  taskdir (the engine worker noticed and mirrored its file to satisfy
+  the harness — same expect_files path class as the Aug-3 qwen rows).
+  Actual work: gpt-5.6-sol migration first-try clean (verified
+  host-side); gpt-5.5-high engine first-try clean (pinned 8/8, full
+  suite green in-sandbox). Do not read these FAIL rows as capability
+  signal. Rules for next manifest: commit or stash orchestrator edits
+  before launching; ownership guards allowlist all concurrent lanes'
+  files; DB checks docker-exec; expect_files taskdir-relative or
+  omitted for direct-repo lanes.
+
+## 2026-08-09 — gdr-v022-pass-t-toll round 2 (gh-dealroom)
+- gpt-5.5-high t-engine: first-try PASS on a hard lane — new pure module
+  (single-balance tolled annuity with capitalization + salary-floor
+  coupling) plus a state-machine extension in contingency.py, against 15
+  hand-pinned cases incl. a 360-month rounding-edge identity. 79k
+  tokens, ~4m. Real capability signal.
+- t-migration FAIL is ORCHESTRATOR check bug #4 this project: a DO $$
+  block inside a double-quoted shell check string — the shell expands $$
+  to its PID and mangles the SQL. Use tagged dollar-quotes (\$tag\$) or
+  single-quoted heredocs in checks. The Sol worker's migration was
+  correct (verified host-side same hour) and it flagged the sandbox
+  docker denial honestly. Standing rules addition: never put bare $$ in
+  a check; sandboxed lanes cannot validate against docker — keep DB
+  validation host-side ONLY and say so in the spec.
+
+## 2026-08-10 — ea-inrun-dedup rounds 1–3 (homer-agents)
+- gpt-5.5-high: 3/3 first-try PASS on code-feature/code-fix worktree
+  lanes (40k/118k/84k tokens) incl. a hard lane (loop-engine dedup with
+  cache-gate accounting) and a subtle-semantics fix lane (terminal-
+  disposition enforcement). Worktrees mode + fix-swarm patch export: zero
+  ownership violations, zero check bugs this run — the Aug-9 standing
+  rules (commit orchestrator edits first, canary assigned to Boss,
+  socket tests excluded from sandboxed lanes) held.
+- claude sonnet (review lane): first-try, 512s, found 2 real HIGH defects
+  with executable A/B probes in a diff that had 625 tests green — second
+  consecutive cycle the sonnet adversarial lane caught HIGH defects the
+  suite couldn't see. Keep it as the standing round-2 gate for EA loop
+  changes.
