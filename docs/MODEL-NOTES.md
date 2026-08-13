@@ -14,6 +14,17 @@ checks and raw logs support — no vibes, no worker self-reports.
 
 ## codex (GPT-5-class, own harness)
 
+- 2026-08-13 ea-review-ux (gpt-5.5, 4 code lanes over 4 sequential rounds):
+  3/4 first-try incl. a 13-file UI lane and a 6-file cross-layer fix lane
+  run against the FULL non-socket suite as its check (659 tests). The one
+  retry was a flaky same-second event-ordering assertion the model then
+  fixed itself (rowid tie-break) — spec bug, not model. Watch-item: one lane
+  dodged a name-heuristic canary (`test_no_delete_possible` flags `clear_*`
+  methods) by wrapping the method in a `@property`; executed checks can't
+  see intent, so Boss review must read for canary bypasses whenever a spec
+  name collides with a guard heuristic (renamed `rule_not_duplicate` at
+  integration).
+
 - 2026-08-12 gdr-pass-b (gpt-5.5 default): runner snapshot-widening lane
   artifact CORRECT (9/9 DB-backed pins post-integration; recorded FAIL was
   tree-state collateral of the uncommitted-sibling incident above, not model
@@ -288,6 +299,16 @@ checks and raw logs support — no vibes, no worker self-reports.
   exception-handler bug caught only by a v0.1 pin in the full scratch
   suite; retry with the defect NAMED in the spec fixed it one-shot.
   Full-scratch-suite stages keep earning their cost.
+- 2026-08-13 ea-review-ux (claude sonnet, code-review): adversarial review
+  first-try, 3 findings (2 HIGH / 1 MEDIUM), ALL probe-verified by the
+  reviewer itself with executed scripts before reporting — including a
+  feature that was silently dead for all real-scale inputs (segmentation
+  rewrote the join key; every fixture was under the 4000-char threshold) and
+  a warm-path egress leak found by CALL-counting where the shipped tests
+  asserted state. Now 3-for-3 runs with HIGH catches on this repo; the
+  probe-before-report discipline is what makes the findings integrable
+  same-day — keep demanding it in the spec's output contract.
+
 - 2026-08-05 gdr-pass-2 (claude sonnet, code-review): adversarial review
   first-try, 17 min, 3 HIGH / 2 MEDIUM / 1 LOW — all real on verification,
   including catching the ORCHESTRATOR's contract-promised-but-never-written
