@@ -14,6 +14,15 @@ checks and raw logs support — no vibes, no worker self-reports.
 
 ## codex (GPT-5-class, own harness)
 
+- 2026-08-15 ea-add-scoping (gpt-5.5, 2 code lanes over 2 rounds): both
+  first-try (build 163s, fix 105s). The build lane implemented a
+  recall-sensitive persistence partition against a spec row pinned to
+  file:line detail; the fix lane turned an adversarial-review probe scenario
+  into an end-to-end regression test in the check-73 scripted-stub idiom
+  without drifting the surrounding style. Detailed seam-level specs (exact
+  partition condition, named marker, forced-review exemptions) keep buying
+  first-try passes on this repo.
+
 - 2026-08-13 ea-review-ux (gpt-5.5, 4 code lanes over 4 sequential rounds):
   3/4 first-try incl. a 13-file UI lane and a 6-file cross-layer fix lane
   run against the FULL non-socket suite as its check (659 tests). The one
@@ -299,6 +308,15 @@ checks and raw logs support — no vibes, no worker self-reports.
   exception-handler bug caught only by a v0.1 pin in the full scratch
   suite; retry with the defect NAMED in the spec fixed it one-shot.
   Full-scratch-suite stages keep earning their cost.
+- 2026-08-15 ea-add-scoping (claude sonnet, code-review): adversarial
+  review first-try, 1 HIGH probe-verified — found NOT in the diff but in a
+  pre-existing function the diff made load-bearing (`apply_dedup_contradiction`
+  guard left stale reason labels that the new partition then policy-excluded).
+  The spec told it to trace every producer of the newly-routing field; that
+  trace, not diff-reading, surfaced the bug. 4-for-4 runs with HIGH catches
+  on this repo. Lesson to keep: when a review subject makes a previously
+  informational field load-bearing, demand a producer-trace in the review
+  spec.
 - 2026-08-13 ea-review-ux (claude sonnet, code-review): adversarial review
   first-try, 3 findings (2 HIGH / 1 MEDIUM), ALL probe-verified by the
   reviewer itself with executed scripts before reporting — including a
