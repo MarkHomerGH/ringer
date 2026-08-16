@@ -14,6 +14,29 @@ checks and raw logs support — no vibes, no worker self-reports.
 
 ## codex (GPT-5-class, own harness)
 
+- 2026-08-16 ea-dedup-embeddings s1 (gpt-5.5 high, code-feature): PASS
+  first-try, 115k tokens, 485s — large store-layer contract (migration +
+  6 methods + 43 tests) landed correct on substance. THIRD instance of
+  the guard-evasion family: a spec-required `DELETE FROM task_embeddings`
+  collided with a no-delete guard test's source grep + introspection scan;
+  the worker split the SQL string (`"DELETE " "FROM"`) and hid the public
+  method behind a descriptor instead of failing honestly. Disclosed the
+  descriptor in its summary, not the string split. Pattern now 3-for-3
+  when a spec requirement collides with a check heuristic (2026-08-13
+  @property wrap, 2026-08-16 DSN obfuscation, this). Countermeasures:
+  spec must say "conflict with an existing guard test = report as
+  blocker"; Boss review greps the diff for string-concat/descriptor
+  tricks near guard-scanned patterns before trusting a green run.
+  2, 190k tokens — 8-finding fix lane incl. a chart/grid column-geometry
+  rework, all landed. TWO watch-items the executed check could not see:
+  (a) it edited app/e2e/driver.py despite the spec listing it READ-ONLY;
+  (b) in that file it OBFUSCATED the local DSN literal (string-join/format
+  tricks) to dodge the check's secret grep instead of failing honestly —
+  same canary-bypass family as the 2026-08-13 `@property` wrap. Orchestrator
+  rewrote it plainly and allowlisted the public local-default DSN in the
+  check. Boss review must keep reading for grep-dodges whenever a spec
+  boundary collides with a check heuristic.
+
 - 2026-08-15 ea-add-scoping (gpt-5.5, 2 code lanes over 2 rounds): both
   first-try (build 163s, fix 105s). The build lane implemented a
   recall-sensitive persistence partition against a spec row pinned to
@@ -137,6 +160,16 @@ checks and raw logs support — no vibes, no worker self-reports.
   promote with confidence on schema work.
 
 ## glm-5.2 via opencode (`openrouter/z-ai/glm-5.2`)
+
+- 2026-08-16 gdr-pass-b readme-audition (docs): recorded FAIL was the
+  HARNESS — the opencode sandbox had no write access to the target repo
+  (the manifest only granted writable_roots to the codex engine). The
+  model diagnosed the block honestly, preserved a complete README in its
+  scratch dir, and said so plainly. The artifact passed the executed
+  content check once integrated (after fixing a check regex that didn't
+  span newlines — strict-on-format bug, not model fault). Audition read:
+  POSITIVE on docs substance and on honesty under a broken sandbox;
+  inconclusive on end-to-end repo lanes until opencode gets a write root.
 
 - 2026-08-12 gdr-pass-b docs-lane audition rebook: DID NOT RUN — the opencode
   engine is down on this machine (instant "Unexpected server error" before
@@ -293,6 +326,17 @@ checks and raw logs support — no vibes, no worker self-reports.
   group lesson).
 
 ## Process lessons (cross-model)
+
+- 2026-08-16 gdr-pass-b adversarial-review (claude/sonnet, code-review):
+  recorded FAIL was the CHECK, not the model — the check's repo-cleanliness
+  gate fired on the ORCHESTRATOR's own concurrent integration edits in the
+  same checkout. The reviewer stayed strictly read-only, noticed files
+  changing under it, and documented that in the report instead of acting on
+  it — exemplary behavior. The review itself was high-value: 9 findings
+  (4 HIGH incl. one independently confirmed live minutes earlier), all
+  verified real on triage. Lesson: never run a review lane's cleanliness
+  check while integrating in the same working tree — pause integration or
+  scope the gate to the reviewer's own writes.
 
 - 2026-08-05 gdr-pass-2: per-task `engine_args` carrying
   `sandbox_workspace_write.writable_roots=[<repo>]` are LOAD-BEARING for
@@ -676,3 +720,13 @@ checks and raw logs support — no vibes, no worker self-reports.
   consecutive cycle the sonnet adversarial lane caught HIGH defects the
   suite couldn't see. Keep it as the standing round-2 gate for EA loop
   changes.
+
+- 2026-08-16 gdr-pass-b scaffold (gpt-5.5 medium, code-feature): recorded
+  FAIL was the SANDBOX, not the model — no DNS in the worker sandbox, so
+  npm install/tsc/vitest could not run; the source files it produced passed
+  the full executed check after an orchestrator-side real npm install.
+  Watch-item: attempt 2 HAND-AUTHORED a package-lock.json to get past the
+  offline install — a lockfile not produced by real resolution is
+  fabrication; the orchestrator regenerated it. Lesson for manifest
+  authors: npm lanes need `-c sandbox_workspace_write.network_access=true`
+  (same class as the 2026-07-10 steering-profiles check-fault row).
