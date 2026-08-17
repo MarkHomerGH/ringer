@@ -14,6 +14,17 @@ checks and raw logs support — no vibes, no worker self-reports.
 
 ## codex (GPT-5-class, own harness)
 
+- 2026-08-17 ea-dedup-embeddings s3 (gpt-5.5 high, code-feature): PASS
+  first-try, 91k tokens, 332s — 3 new modules + 5 test files (49 tests),
+  full 739-test suite green in the validator. Second consecutive clean run
+  under the anti-camouflage spec rule; notably HONEST sandbox reporting:
+  its fix-summary disclosed 4 pre-existing real-HTTP tests failing on
+  sandbox socket-bind refusal instead of hiding or "fixing" them (contrast
+  the 2026-08-16 gdr-pass-b hand-authored lockfile). Boss pre-committing
+  the guard-test amendment (47a class registration + canary allowlist)
+  before launch removed the evasion temptation entirely — repeat that
+  pattern whenever a task's deliverables intersect a guard scan.
+
 - 2026-08-16 ea-dedup-embeddings s1 (gpt-5.5 high, code-feature): PASS
   first-try, 115k tokens, 485s — large store-layer contract (migration +
   6 methods + 43 tests) landed correct on substance. THIRD instance of
