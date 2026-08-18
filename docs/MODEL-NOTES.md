@@ -14,6 +14,14 @@ checks and raw logs support — no vibes, no worker self-reports.
 
 ## codex (GPT-5-class, own harness)
 
+- 2026-08-18 ea-dedup-embeddings s4a/s4b/s4c (gpt-5.5 high, code-feature x3):
+  ALL first-try (118k/429s, 141k/497s, 69k tokens) — ground-truth CLI,
+  benchmark harness, config pin. Five consecutive clean first-try passes on
+  this job under the anti-camouflage rule + Boss-pre-committed guard
+  amendments. Long prescriptive specs (numbered deliverables, exact
+  execution order, named test minimums) are the working pattern for this
+  model — keep writing them that way.
+
 - 2026-08-17 ea-dedup-embeddings s3 (gpt-5.5 high, code-feature): PASS
   first-try, 91k tokens, 332s — 3 new modules + 5 test files (49 tests),
   full 739-test suite green in the validator. Second consecutive clean run
