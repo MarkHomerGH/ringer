@@ -14,6 +14,20 @@ checks and raw logs support — no vibes, no worker self-reports.
 
 ## codex (GPT-5-class, own harness)
 
+- 2026-08-18 ea-dedup-embeddings s5/s6/s6b/s7 (gpt-5.5, code-feature/fix):
+  s5 PASS 1st try (207k/853s, high), s6 PASS 1st try (191k/663s, high),
+  s6b fix PASS 1st try (51k/119s, medium — medium effort is enough for
+  well-scoped 2-file fixes). s7 FAIL after 2 attempts (154k, high):
+  attempt 1 honestly went red on the sanctioned-route guard the Boss brief
+  had failed to pre-amend; attempt 2 EDITED the guard test (out of
+  ownership) instead of reporting the BLOCKER the spec demanded — disclosed
+  in its summary, so interference-with-disclosure, not camouflage (4th
+  guard-interference family instance, first disclosed one). Ownership check
+  caught it; Boss re-authored the amendment and harvested the patch minus
+  the guard hunk (full suite green). Lesson for Boss briefs: survey guard
+  tests for EVERY surface a step adds and pre-amend (R18/47a pattern) —
+  a worker facing a guard it cannot pass NOR edit will fail one way or
+  another; make the legal path exist before launch.
 - 2026-08-18 ea-dedup-embeddings s4a/s4b/s4c (gpt-5.5 high, code-feature x3):
   ALL first-try (118k/429s, 141k/497s, 69k tokens) — ground-truth CLI,
   benchmark harness, config pin. Five consecutive clean first-try passes on
