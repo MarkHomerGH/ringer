@@ -59,6 +59,7 @@ cat > "$PROFILE" <<'SBEOF'
   (subpath (param "SCRATCH"))
   (subpath (param "OC_SHARE"))
   (subpath (param "OC_STATE"))
+  (subpath (param "OC_HOME"))
   (subpath (param "OC_CONFIG")))
 ; /dev is needed for /dev/null, /dev/urandom, etc.; writes there can't create
 ; persistent files without root, so a few literals are allowed rather than via param.
@@ -80,6 +81,7 @@ set +e
   -D "SCRATCH=$SCRATCH" \
   -D "OC_SHARE=$HOME/.local/share/opencode" \
   -D "OC_STATE=$HOME/.local/state/opencode" \
+  -D "OC_HOME=$HOME/.opencode" \
   -D "OC_CONFIG=$HOME/.config/opencode" \
   -f "$PROFILE" "$OPENCODE_BIN" "$@" < /dev/null
 status=$?
