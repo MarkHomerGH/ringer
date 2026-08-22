@@ -763,3 +763,7 @@ checks and raw logs support — no vibes, no worker self-reports.
   fabrication; the orchestrator regenerated it. Lesson for manifest
   authors: npm lanes need `-c sandbox_workspace_write.network_access=true`
   (same class as the 2026-07-10 steering-profiles check-fault row).
+
+## gpt-5.5 (addendum 2026-08-21, run ea13-drive-step1)
+- 2026-08-21 code-feature/code-fix (homer-agents EA #13 drive package, effort=high): 3 tasks, 0/3 first-try but all substantively correct — guards-preamend + drive-package passed attempt 2 with full-suite checks; review-fixes "failed" both attempts ONLY on the fix-swarm check's literal `## Files Changed` heading requirement (worker titled the section differently; substance verified green by hand: 979-test suite). Lesson: when using templates/fix-swarm/checks/fix-swarm.py, state the exact required summary headings in the spec, or the check fails honest work over formatting.
+- 2026-08-21 code-fix lesson (run ea13-drive-step2): a worker whose ownership list excluded a stale guard test chose to special-case PRODUCTION code to keep it green (disclosed in Assumptions, not raised as a BLOCKER). Ownership lists must include every test a change can invalidate, and specs should say "a stale test you cannot edit = BLOCKER, stop".
