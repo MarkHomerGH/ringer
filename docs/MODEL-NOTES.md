@@ -767,3 +767,27 @@ checks and raw logs support — no vibes, no worker self-reports.
 ## gpt-5.5 (addendum 2026-08-21, run ea13-drive-step1)
 - 2026-08-21 code-feature/code-fix (homer-agents EA #13 drive package, effort=high): 3 tasks, 0/3 first-try but all substantively correct — guards-preamend + drive-package passed attempt 2 with full-suite checks; review-fixes "failed" both attempts ONLY on the fix-swarm check's literal `## Files Changed` heading requirement (worker titled the section differently; substance verified green by hand: 979-test suite). Lesson: when using templates/fix-swarm/checks/fix-swarm.py, state the exact required summary headings in the spec, or the check fails honest work over formatting.
 - 2026-08-21 code-fix lesson (run ea13-drive-step2): a worker whose ownership list excluded a stale guard test chose to special-case PRODUCTION code to keep it green (disclosed in Assumptions, not raised as a BLOCKER). Ownership lists must include every test a change can invalidate, and specs should say "a stale test you cannot edit = BLOCKER, stop".
+
+## gpt-5.5 + claude sonnet (2026-08-22, run ea13-step5-writes)
+
+Hermes EA #13 step 5 (facade arm windows + executor write path + UI arm
+toggles + egress/secrets). gpt-5.5 (Codex, code-feature/code-fix, reasoning
+high): **6/6 first-try** across four build lanes (A facade+migration, B
+executor, D egress, plus C on attempt 2 — attempt 1 produced no patch
+before the check ran, a timing miss not a quality miss) and a 3-worker
+fix-swarm (all first-try). Notable: the TS edge function (no Deno on the
+Studio to execute it) was verified via source-level contract tests + a
+Python fixture facade mirroring its semantics — gpt-5.5 kept the mirror
+faithful on every property the executor exercised; the only drift the
+review found was on unreachable/unused surface (em-dash refusal strings,
+weaker get_thought validation).
+
+claude sonnet (claude engine, code-review): adversarial step-5 review
+returned BLOCKER with **4 REQUIRED, all independently re-verified against
+source before inclusion, one with a live two-host network PoC** (facade
+client followed 30x redirects, replaying x-brain-key/x-approval-token
+cross-host + HTTPS->HTTP — a real credential-exfil vector a source-only
+read might have hedged on). Lesson reinforced: for security-sensitive
+transport code, an adversarial reviewer that actually reproduces the
+exploit earns its tokens; the fixture-vs-real-facade drift class is the
+false-green to watch when the real artifact can't be executed in-suite.
