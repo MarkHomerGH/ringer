@@ -814,3 +814,37 @@ read might have hedged on). Lesson reinforced: for security-sensitive
 transport code, an adversarial reviewer that actually reproduces the
 exploit earns its tokens; the fixture-vs-real-facade drift class is the
 false-green to watch when the real artifact can't be executed in-suite.
+
+## 2026-08-24 — homer-workspace v0.1 test-suite swarm (run v0.1-test-suite-20260824T204433Z)
+
+gpt-oss:20b (ollama via opencode, code-feature, test authoring): **0/2, audition
+ended.** Wrote a self-check asserting `---invalidyaml---` raises YAMLError — that
+string is valid YAML, so its own test failed; also delivered 5 tests where the
+spec demanded >= 8. The executed check caught both. Do differently: keep 20b off
+code-feature; if auditioning local models on test authoring again, the spec must
+spell out what "malformed YAML" means (this rerun's spec now does).
+
+gpt-5.5 (Codex, code-feature, reasoning high): **4/4 on content quality.** All
+four lanes' files passed the corrected check unchanged — the recorded FAILs were
+an orchestrator check defect, not worker error: the check ran pytest (creating
+tests/__pycache__ bytecode), then `git add -A` staged the .pyc and tripped the
+exactly-one-owned-file rule. Fix that travels: export PYTHONDONTWRITEBYTECODE=1,
+`git reset -q`, and purge __pycache__ before staging in any ownership-checked
+pytest lane. Scoreboard shows these as FAIL; weight them accordingly.
+
+nemotron-3.5-lightning:free (OpenRouter via opencode, probe): **1/1 first-try**,
+6.9s, $0 — connectivity probe proving the OpenRouter path works (the config
+comment claiming no key was stale; fixed 2026-08-24). Trivial task only — says
+nothing about code quality yet. Validated as next audition candidate on a
+low-stakes code-feature lane.
+
+nemotron-3.5-lightning:free (OpenRouter via opencode, code-feature, test
+hardening audition): **pass on attempt 2, $0.** Attempt 1 under-delivered
+(8 tests collected vs 10 required — same under-delivery mode as gpt-oss:20b,
+but recoverable); the retry prompt carrying the check's exact failure line
+fixed it. Codex comparison lanes in the same run: both first-try. Standing:
+probation for code-feature — usable on small, tightly-specified lanes with a
+strong executed check and retry headroom; not ready for first-try-critical
+work. Spec lesson: give small models explicit numeric floors (test counts,
+assert counts) — both failures this session were floor misses, not logic
+errors.
