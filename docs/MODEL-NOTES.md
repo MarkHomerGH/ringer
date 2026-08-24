@@ -14,6 +14,18 @@ checks and raw logs support — no vibes, no worker self-reports.
 
 ## codex (GPT-5-class, own harness)
 
+- 2026-08-24 task-tracker-bakeoff, 4 cells (gpt-5.5, bakeoff/tool-trial):
+  4/4 PASS first try. Task shape: drive an unfamiliar CLI (backlog.md,
+  beads) through a full lifecycle in a sandboxed disposable worktree and
+  report evidence. Standout behavior: when tool defaults violated the
+  sandbox (backlog git-integration writing to the main repo's .git;
+  bd resolving the worktree to the real repo path, then panicking on
+  ~/.dolt), workers diagnosed the boundary violation, found contained
+  workarounds (filesystemOnly=true; BEADS_DIR + redirected HOME), preserved
+  failure artifacts, and documented everything instead of giving up or
+  cheating the boundary. Tool-trial cells with hostile defaults are a safe
+  codex lane at default effort.
+
 - 2026-08-18 ea-dedup-embeddings s5/s6/s6b/s7 (gpt-5.5, code-feature/fix):
   s5 PASS 1st try (207k/853s, high), s6 PASS 1st try (191k/663s, high),
   s6b fix PASS 1st try (51k/119s, medium — medium effort is enough for
@@ -543,6 +555,17 @@ checks and raw logs support — no vibes, no worker self-reports.
 - 2026-08-15 gdr-pass-a-facade code-review: the standing lane pays off again. Executed review (built its own probes, ran deno tests against pure modules, round-tripped dates through the live pinned driver, hand-checked parity on 4 fixture variants the pins never touched) found 1 HIGH + 2 MEDIUM against a fully green suite — a real one: `resolveInputRoute` did `INPUT_TABLES[kebabTable]` truthy-check, so `constructor`/`hasOwnProperty`/`__proto__` path segments escaped not_found and reached the raw-SQL function name. Green suite could not see it (no test probed inherited property names). All findings actionable with executed evidence; the two code defects were fixed same session, finding 3 (schema-hardening, engine-unreachable) backlogged. 26-min runtime. CHECK-AUTHORING LESSON: the lane's own check FAILED it — the repo-clean assertion tripped on the ORCHESTRATOR's uncommitted edit sitting in the tree, not any reviewer write (read-only reviewer, repo genuinely untouched). Same class as the 07-31 "commit orchestrator edits before launching" lesson, one level up: a read-only-reviewer's cleanliness check must snapshot `git stash create` state or diff only the reviewer's own writes, never assert a globally-clean tree while the orchestrator is mid-edit.
 
 ## qwen3.6:35b (opencode engine, local ollama, homer-studio) — 2026-07-28 local-model-audition
+
+- 2026-08-24 task-tracker-bakeoff scouts ×2 (research, read-only, verified
+  citations): first PASS-class results for this model. gh-dealroom scout
+  PASS on attempt 2 (retry feedback fixed citation line numbers); ringer
+  scout produced a fully honest row but FAILED on a checker bug (the
+  validator didn't strip backticks from a verbatim quote — quote was real,
+  README.md:275). Both rows were dense, accurate, zero fabrication, and
+  every citation survived on-disk verification. Repo-editing ban from
+  08-15 stands unchanged; but read-only research with an executed
+  citation-checker is now a legitimate free local lane for this model —
+  the checker is load-bearing, keep it.
 - probe (small code task, executed acceptance check with reference implementation): first-try PASS, 12,173 tokens, 78s on M-series/64GB. Spec-faithful Decimal money math, correct largest-remainder tiebreak. Zero marginal cost. Promoted to probation for mechanical/low-stakes lanes (docs sweeps, scaffolds, small pure-function work) — NOT contract-bound engine lanes or review lanes. First run failed in 1s on harness wiring, not the model: the brew-era Seatbelt profile in opencode-sandboxed.sh lacked ~/.opencode (new installer's state dir); fixed by adding OC_HOME to the allowed write subpaths. llama3.3:70b (42GB) untested — too tight on 64GB to load mid-swarm; gpt-oss:20b untested fast fallback.
 - 2026-08-15 gdr-pass-a-facade (code-feature re-audition, the authorized clean-manifest retest after the 08-09 scoreboard correction): FAIL — TIMEOUT ×2, 146k tokens, 63min wall. Task was a fully-specified mechanical refactor (change one helper signature + 19 enumerated call sites, exact old→new mapping in the spec, 2,753-line file). Failure mode was approach, not comprehension: instead of editing the file directly it wrote a Python regex-rewrite script, lost to whitespace mismatches, copied the file around its workdir, got blocked by the Seatbelt profile on a heredoc temp file, and ran out the clock without ever touching the real file (repo verified clean after). With code-review 0/2 (08-09, stands) this ends the qwen3.6:35b audition for repo-editing lanes of ANY size; the Jul-28 probe pass stays valid for single-file-from-scratch pure-function work only. Same task rebooked on codex gpt-5.5 (effort low) immediately after. Lesson for spec authors: multi-site edits in large files need a worker whose harness edit tool anchors on exact file text — do not assign them to models that reach for sed/regex scripts.
 
