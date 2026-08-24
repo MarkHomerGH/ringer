@@ -848,3 +848,17 @@ strong executed check and retry headroom; not ready for first-try-critical
 work. Spec lesson: give small models explicit numeric floors (test counts,
 assert counts) — both failures this session were floor misses, not logic
 errors.
+
+GPT-5.5 · high (codex, code-feature, homer-workspace portfolio-v01-build
+2026-08-24): **content green both attempts; scoreboard FAIL is a check bug.**
+Single worker built the whole v0.1 generator (bin/portfolio + 5 modules +
+projects.yml, ~28KB) against a 50-test black-box gate: 50/50 passed, ownership
+clean, spec subtleties (R7 edge matrix, R8 path redaction, unborn-repo
+honesty, 0600 modes, interpreter re-exec fallback) all correct on attempt 1.
+The check failed both attempts on `git status --porcelain` collapsing new
+untracked dirs to `?? src/` / `?? bin/` — the ownership matcher compared
+against file paths only. Fix that travels: run status with
+`--untracked-files=all` (or `git status --porcelain -uall`) in any
+ownership-checked lane that creates new directories. Weight this FAIL as
+orchestrator error, not model error; quality of the delivered code was high
+(orchestrator review found only two cosmetic nits).
