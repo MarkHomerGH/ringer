@@ -864,3 +864,16 @@ orchestrator error, not model error; quality of the delivered code was high
 (orchestrator review found only two cosmetic nits).
 
 - 2026-08-25 (homer-agents EA): gpt-5.5 medium 3/3 first-try on contract-pinned lanes (code-fix remediation ~106k tok; code-feature knowledge stage ~146k; review-fix ~103k). Detailed Boss contract pins + fix-swarm checks; no evasion patterns observed. Claude (code-review lane) caught a REQUIRED production-shape bug (bare-string principal defeating router exclusion) that 17 dict-shaped tests missed — cross-review earning its cost on config-shape mismatches.
+
+nemotron-3.5-lightning:free (OpenRouter via opencode, code-feature/test-
+hardening, homer-agents sam-v02-build 2026-08-25): **stalled, killed by
+orchestrator.** One of four parallel test-authoring lanes (the other three:
+codex gpt-5.5, all first-try PASS in ~3min). Worker went silent 20+ minutes
+mid-task at ~68k tokens, last log line "The file is in a messy state from
+edits. Let me rewrite it properly" — the classic small-model long-harness
+choke the playbook warns about, this time on a ~450-line multi-scenario
+pytest file (vs the 8-test file it passed-on-retry 2026-08-24). Run killed
+before timeout+retry could burn 35 more wall-clock minutes; task re-run on
+codex. Standing: DEMOTED off multi-scenario test-authoring lanes; probation
+holds only for small tightly-floored single-purpose files. Next audition, if
+any: a lane capped at ~10 tests with explicit numeric floors.
