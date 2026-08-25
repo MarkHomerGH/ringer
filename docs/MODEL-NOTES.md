@@ -14,6 +14,20 @@ checks and raw logs support — no vibes, no worker self-reports.
 
 ## codex (GPT-5-class, own harness)
 
+- 2026-08-25 ea13-step7-prep, 1 task (gpt-5.5, code-feature, medium): PASS
+  1st try (124k/268s). Two-part task (store-join enrichment in an existing
+  stage + CLI/config wiring in a 650-line driver) with an 8-test floor
+  across two files — no floor gaming, correct one-shot discovery of the
+  canonical schema_version from shipped tests, honest sandbox-failure
+  reporting (4 socket-bind fails named as environmental, confirmed green in
+  the check env). gpt-5.5 medium now 4/4 first-try on pinned single-lane
+  EA code-feature tasks; medium stays the default effort for this shape.
+  Companion sonnet review lane (code-review, 458s): CLEAR with probe
+  evidence — reproduced the step-6 mutation-BLOCKER hypothesis and ruled it
+  out empirically, surfaced 1 real coverage gap (isinstance-only assertions
+  on composed clients). Sonnet review lanes continue to earn their cost on
+  gate-chain/credential surfaces.
+
 - 2026-08-24 task-tracker-bakeoff, 4 cells (gpt-5.5, bakeoff/tool-trial):
   4/4 PASS first try. Task shape: drive an unfamiliar CLI (backlog.md,
   beads) through a full lifecycle in a sandboxed disposable worktree and
