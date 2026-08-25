@@ -891,3 +891,18 @@ before timeout+retry could burn 35 more wall-clock minutes; task re-run on
 codex. Standing: DEMOTED off multi-scenario test-authoring lanes; probation
 holds only for small tightly-floored single-purpose files. Next audition, if
 any: a lane capped at ~10 tests with explicit numeric floors.
+
+GPT-5.5 · high (codex, code-feature, homer-agents sam-v02-build Round B
+2026-08-25): **content green; both scoreboard FAILs are harness-side.** One
+worker built the whole v0.2 escalations slice (migration 0008 + 711-line
+sam_cli.py + bin/sam) against a pre-written 42-test black-box gate: all 42
+green zero skips, full 1301-test suite green, ownership clean. The two FAILs:
+(1) orchestrator's check greped for the spec's literal SQL fragment
+`length(trim(x)) > 0` — the worker had written the MORE correct
+`trim(x, ' '||char(9)||char(10)||char(13))` because SQLite trim() strips only
+spaces and the gate demands tab/newline rejection; on retry it held the
+correct SQL rather than caving to the check. Respect. (2) pre-existing
+0007-is-newest test brittleness outside the worker's ownership. Lessons that
+travel: never fragment-grep for exact SQL the executed tests already enforce
+(strict on substance, tolerant on format); migration tests must assert
+"applied once, in order," never "is the newest."
