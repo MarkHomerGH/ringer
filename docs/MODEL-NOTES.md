@@ -862,3 +862,5 @@ against file paths only. Fix that travels: run status with
 ownership-checked lane that creates new directories. Weight this FAIL as
 orchestrator error, not model error; quality of the delivered code was high
 (orchestrator review found only two cosmetic nits).
+
+- 2026-08-25 (homer-agents EA): gpt-5.5 medium 3/3 first-try on contract-pinned lanes (code-fix remediation ~106k tok; code-feature knowledge stage ~146k; review-fix ~103k). Detailed Boss contract pins + fix-swarm checks; no evasion patterns observed. Claude (code-review lane) caught a REQUIRED production-shape bug (bare-string principal defeating router exclusion) that 17 dict-shaped tests missed — cross-review earning its cost on config-shape mismatches.
