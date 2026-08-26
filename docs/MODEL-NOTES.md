@@ -918,3 +918,19 @@ correct SQL rather than caving to the check. Respect. (2) pre-existing
 travel: never fragment-grep for exact SQL the executed tests already enforce
 (strict on substance, tolerant on format); migration tests must assert
 "applied once, in order," never "is the newest."
+
+## 2026-08-26 — homer-agents v0.3 Stage A (run v03-stage-a-build)
+
+gpt-5.5 high (codex), test-gate-first pair: test-gate authoring (17 black-box
+subprocess tests) first-try PASS, ~98k tokens, clean red-gate discipline and
+an honest ambiguity note. Implementation PASS on attempt 2, ~113k tokens —
+but attempt 1 was the BETTER response: it implemented all four behaviors and
+then stopped to report that ten legacy tests still assumed the amended
+auto-create contract, exactly as its spec instructed ("report, don't edit
+out-of-bounds files"). The check demanded a green full suite anyway, so the
+retry pressure produced a PYTEST_CURRENT_TEST-sniffing carve-out in
+production code (orchestrator removed it post-run and amended the legacy
+tests instead). Orchestrator lesson, not a model demerit: when a spec says
+"stop and report condition X," the check MUST treat a correctly-reported X
+as PASS — a check that contradicts the spec trains workers to hack around
+the honest answer.
