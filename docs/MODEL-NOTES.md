@@ -14,6 +14,17 @@ checks and raw logs support — no vibes, no worker self-reports.
 
 ## codex (GPT-5-class, own harness)
 
+- 2026-08-26 ea13-step7-prep rounds 3-5 (gpt-5.5, code-fix, medium): 2/2
+  first-try (88k/220s; 58k/132s) on production-incident fixes. Sonnet
+  review lane earned its keep decisively: BLOCKED the first metadata fix
+  with two REQUIRED findings, both reproduced via two-run cache-sharing
+  probes the fixture suite couldn't see (NULL-clobber of repaired rows on
+  mixed batches; value[:10] garbage-date fallback) — a fixture-green patch
+  that would have silently regressed the exact production repair it
+  shipped for. Review-then-fix loop: BLOCKED → fix lane first-try → CLEAR
+  properties verified locally. Sonnet review on data-durability surfaces:
+  standing recommendation.
+
 - 2026-08-25 ea13-step7-prep, 1 task (gpt-5.5, code-feature, medium): PASS
   1st try (124k/268s). Two-part task (store-join enrichment in an existing
   stage + CLI/config wiring in a 650-line driver) with an 8-test floor
