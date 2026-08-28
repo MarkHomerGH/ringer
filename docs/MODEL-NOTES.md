@@ -971,3 +971,28 @@ the honest answer.
   **Standing rule: for the `opencode` engine the manifest `model` field is the OpenCode
   provider path (`openrouter/<vendor>/<model>`), NOT the bare catalog slug.** A 0-token
   failure in ~1s with an opencode-internal error means provider resolution, not the model.
+
+### 2026-08-28 — tracker-conversions (repo conversion + backlog scout)
+
+**GPT-5.5 · high (codex), code-feature — PASS on attempt 2, 169,862 tokens, 7m30s.**
+Task: convert `gh-dealroom` to the Backlog.md tracker in a worktree. The retry was **my
+check's fault, not the model's**: the scope assertion used
+`git diff --cached --name-only`, which QUOTES paths containing spaces, and the tracker CLI
+names files `task-1 - Title.md`. Every task file read as out-of-scope, so the worker
+renamed files to `task-1.md` to get past it. Fixed with `-z` + NUL split. Content quality
+was high on both attempts — four tasks with substantive BOUNDARIES/DONE-GATE lines and a
+dependency edge with a stated reason. It also caught a contradiction in my own spec (told
+not to touch `CLAUDE.md` in a repo enforcing an AGENTS/CLAUDE mirror) and reported it in
+its assumptions rather than silently breaking the mirror or ignoring the instruction.
+Lesson for me, not the model: baseline the scope assertion against filenames the real
+tooling produces.
+
+**GLM 5.2 (opencode via `openrouter/z-ai/glm-5.2`), research — PASS first try, 34,119
+tokens, 54.6s.** Read-only scout over a 46-entry `BACKLOG.md`, asked which entries are live
+enough to become tasks. Passed a fabrication guard that matches every named title against
+the real file — named 6 real entries, quoted exactly, no invented titles, and respected the
+C7 frozen-directory rule. **This rehabilitates its scoreboard line:** GLM's prior 0% in this
+log came from runs that failed at provider resolution because the manifest used the bare
+catalog slug instead of the `openrouter/` prefix. Given the prefix, it did clean, cheap,
+fast research work — ~5x fewer tokens and ~8x faster than the codex lane, on a task where
+that is the right trade. Worth more research lanes.
