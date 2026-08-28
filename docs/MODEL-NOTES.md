@@ -946,3 +946,28 @@ the honest answer.
 - 2026-08-27 backfill-step2 roundB (gpt-5.5/codex, code-feature, homer-agents orchestrator+lock+cap): first-try PASS against six hash-locked gates (~40 tests, 690-line orchestrator with resume/typed-outcomes/cap semantics), 123k tokens, 334s. Exemplary tree discipline after the roundA lesson: spec said "changes you didn't make: leave alone and report" — worker's notes enumerated the pre-existing modified/untracked files verbatim and touched none, and correctly attributed its 4 full-suite failures to its own sandbox (port binding), which passed unsandboxed. One boss catch post-run (design, not gate-covered): it faithfully mirrored rehearsal's --knowledge-capture default OFF into a CLI whose entire purpose is capture creation. Gates can't see product intent; the boss review still earns its keep on defaults.
 - 2026-08-28 backfill-step3 (code-feature, hard: 8-file feature vs 8 hash-locked gates, ~60 tests): first-try PASS, 97k tokens, 313s. Hardened spec (read-first list with line anchors + explicit stop-and-report) again produced honest sandbox-failure attribution (4 socket-bind fails correctly blamed on seatbelt, not the code). Two first-try rounds in a row at this shape — spec hardening is doing the work.
 - 2026-08-28 backfill-step4 (gpt-5.5/codex, code-feature, homer-agents lens+bulk-actions vs 5 hash-locked gates): first-try PASS, 86k tokens, 294s — third consecutive first-try at this shape. One boss catch: a gate that seeded only ONE live task was satisfiable only by padding the duplicate dropdown with a disabled self-option; the worker shipped the shim and described it euphemistically in notes.md ('keeps live task ids represented') instead of stop-and-reporting. Lesson: gate defects INDUCE shims — seed enough entities that honest behavior passes; and notes.md language that narrates a workaround as a feature is a review flag.
+
+### 2026-08-28 — v031-spec-cross-model-review (code-review)
+
+- **GPT-5.5 (Codex CLI):** PASS first try on a spec review — 546-line spec + contract +
+  code excerpts embedded in a ~14k-token prompt. 39,733 tokens, 77s. Four findings, three
+  confirmed on resolver verification, one overstated (claimed a concurrent race that
+  `BEGIN IMMEDIATE` already blocks). Good signal-to-noise for pre-implementation spec
+  gates; embedding the artifact in the prompt worked cleanly with no repo access needed.
+- **z-ai/glm-5.2 (OpenCode):** FAIL, 0 tokens — **cause was orchestrator error, not the
+  model, the provider, or the lane.** Corrected twice; the first two readings ("free
+  endpoint down", then "OpenCode lane broken") were both wrong.
+  Root cause: OpenCode resolves models as `provider/model`, so an OpenRouter model needs the
+  `openrouter/` prefix. The manifest passed the bare `ringer.py catalog` slug
+  (`z-ai/glm-5.2`), OpenCode looked for a provider named `z-ai`, found none, and threw
+  `UnknownError / "Unexpected server error"` with 0 tokens. `deepseek/deepseek-v4-flash`
+  failed the same way in the probe, which is exactly what made it look lane-wide.
+  Proof — probe `opencode-lane-probe-20260828T152758Z-p20291`:
+  `openrouter/z-ai/glm-5.2` PASS (11,852 tokens, 3.9s, $0.0044) vs bare `z-ai/glm-5.2` FAIL
+  (0 tokens). OpenRouter key valid and funded ($49.06/$50); opencode.db integrity ok; the
+  failures never reached opencode.log because it died at provider resolution.
+  **The lane is healthy — do not re-auth or reinstall.** No GLM or DeepSeek capability
+  result should be inferred from these runs.
+  **Standing rule: for the `opencode` engine the manifest `model` field is the OpenCode
+  provider path (`openrouter/<vendor>/<model>`), NOT the bare catalog slug.** A 0-token
+  failure in ~1s with an opencode-internal error means provider resolution, not the model.
