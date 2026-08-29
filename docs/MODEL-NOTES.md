@@ -1080,3 +1080,49 @@ that is the right trade. Worth more research lanes.
   on price and a non-zero-cost one on wall clock. **The second identical failure is the
   point at which the experiment should change, not repeat.** The first failure justifies
   a retry; the third would be a habit.
+
+## GPT-5.5 (codex) — review-of-a-review, 2026-08-29
+
+- **2026-08-29 (code-review, v04-decision-log-spec-review round 3):** PASS first try, verdict
+  *Ready with small fixes*. **Third consecutive pass on this job (3/3).** The brief was
+  unusual and worked well: the object under review was **an architecture review**, not the
+  spec it reviewed — audit all eleven of its findings, audit its claimed lens coverage
+  (including five lenses it declared empty), and hunt for what every prior pass missed.
+- **The lens-coverage audit is the reusable pattern.** Asking "you claim these five lenses
+  returned nothing — verify each against the code" produced the round's best result: it
+  confirmed four as genuinely empty, and called the fifth's *"returned nothing"* wording
+  **"a little too casual"** while agreeing it was not blocking. That is the calibrated answer,
+  not a manufactured finding — worth noting because inviting a challenger to attack a "clean"
+  result is exactly how you get invented findings from a weaker model.
+- **It found the real gap by reading the business goal, not the code.** Its P1 was that a page
+  specified as phone-read had no layout gate at all — "a coding agent can pass every named
+  scenario while shipping a page Mark cannot read." Neither of the two prior passes saw it.
+- **It also under-counted once:** it flagged one stale copy of a corrected factual claim; the
+  resolver's `grep` found three. Useful calibration — a challenger finds the instance in front
+  of it, so **the resolver still owes the sweep.**
+- **Brief pattern to reuse for any review-of-a-review:** state the shared-blind-spot risk
+  explicitly (here: spec author, reviewer, and resolver were all the same model family), give
+  the evidence that the risk is real (a prior round caught the reviewer repeating a defect it
+  had just read about), and tell the challenger its most valuable output is something all prior
+  passes missed.
+
+## cohere/north-mini-code:free (via opencode) — audition, 2026-08-29
+
+- **2026-08-29 (code-review, v04-decision-log-spec-review round 3):** **FAIL. No report.**
+  Attempt 1 burned the full 50-minute timeout producing nothing; the run was stopped during
+  attempt 2 rather than spend another 50 minutes. **$0.**
+- **This is a capability/harness signal, NOT a provider outage** — which makes it more useful
+  than the nemotron-3-ultra failures. The provider responded normally throughout. The model
+  **could not satisfy the harness's write-to-`./report.md` contract**, looping in its own
+  reasoning: *"I'm having trouble creating the report.md file in the current directory… I think
+  there might be some permission issues."* ~57k tokens on that step, **zero output tokens**,
+  and it never began the actual review.
+- **Do not route this slug to long review tasks.** If re-auditioned, start with a trivial
+  output contract.
+- **The process lesson, and it outranks the model verdict.** Two consecutive rounds have now
+  lost ~1 hour of wall clock to exploration lanes that produced no evidence (nemotron: provider;
+  north-mini-code: harness). **The thing to change is not the model choice — it is auditioning
+  on the critical path at all.** Audition a free candidate on a *probe*-shaped one-task manifest
+  with a trivial deliverable first; promote it to a real review lane only after it has proven it
+  can write its output file. An exploration lane riding alongside work someone is waiting on
+  turns a zero-dollar experiment into an expensive one.
