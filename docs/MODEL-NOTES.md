@@ -1037,3 +1037,46 @@ that is the right trade. Worth more research lanes.
   against the codebase* (the spec carried an appendix of ~14 file/line claims) turned a
   prose review into an executable one. Worth reusing for any spec that asserts things
   about a repo.
+
+## GPT-5.5 (codex) — spec review round 2, 2026-08-29
+
+- **2026-08-29 (code-review, v04-decision-log-spec-review round 2):** PASS first try,
+  109,151 tokens. Scope was deliberately narrowed to a diff (`cdd154a..f08fa42`) plus a
+  **regression pass over fifteen prior findings**. Returned 14 resolved / 1 partially
+  resolved, and **one new P1 which the resolver confirmed by executing the arithmetic**:
+  a boundary scenario added by the *previous* review round did not actually cross the
+  boundary it claimed to (the two timestamps differed in date but sat in the same ISO
+  week), so a naive implementation would have passed it.
+- **The pattern to reuse: a regression pass is worth more than a re-read.** Asking the
+  challenger to classify every prior finding as resolved / partially resolved / still
+  open / regressed — and enforcing it in the check — is what surfaced the P1. A fresh
+  full read would have had no reason to look there.
+- **It re-derived a prior Blocker independently rather than trusting it.** The brief
+  asked it to verify a claim about a launchd job; it read the plist and the runner
+  source itself and confirmed the absolute-path execution. A finding asserted by one
+  model and verified by another is materially stronger than one model's confidence.
+- **Second data point for the same lesson as round 1:** it caught the error by doing the
+  timezone arithmetic rather than reading the prose. Both rounds' highest-value findings
+  came from execution, not from reasoning about text. Brief challengers to *execute* the
+  spec's factual claims.
+
+## nvidia/nemotron-3-ultra-550b-a55b:free (via opencode) — second audition, 2026-08-29
+
+- **2026-08-29 (code-review, v04-decision-log-spec-review round 2):** **FAIL, 2 attempts,
+  135,545 tokens, $0, no report produced.** Same failure mode as the 2026-08-29 round-1
+  audition: four `Upstream error from Nvidia: Service temporarily overloaded` plus two
+  `Upstream idle timeout exceeded` (504). Raw log tail archived at
+  `homer-workspace/reviews/v0.4-decision-log_NEMOTRON_REVIEW_LOG_ROUND2.txt`.
+- **Still not a capability verdict — but now a lane verdict.** Two auditions, zero
+  reports, ~172k tokens and ~20 minutes of wall clock across both, all lost to provider
+  availability rather than model output. Its scoreboard line reads 0% first-try on
+  `code-review` and that number continues to say nothing about the model.
+- **Recommendation: stop auditioning this endpoint on work that matters.** Either pair it
+  with a paid fallback lane, or spend the exploration slot on a different free candidate
+  — `nvidia/nemotron-3.5-lightning:free` (1M ctx; note the 2026-08-27 404 entry above,
+  so re-check `catalog` first) or `cohere/north-mini-code:free` (256k, code-oriented,
+  untested).
+- **Generalised lesson, second instance:** a free provider lane is a zero-cost experiment
+  on price and a non-zero-cost one on wall clock. **The second identical failure is the
+  point at which the experiment should change, not repeat.** The first failure justifies
+  a retry; the third would be a habit.
