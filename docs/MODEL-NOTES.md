@@ -996,3 +996,44 @@ log came from runs that failed at provider resolution because the manifest used 
 catalog slug instead of the `openrouter/` prefix. Given the prefix, it did clean, cheap,
 fast research work — ~5x fewer tokens and ~8x faster than the codex lane, on a task where
 that is the right trade. Worth more research lanes.
+
+## nvidia/nemotron-3-ultra-550b-a55b:free (via opencode)
+
+- **2026-08-29 (code-review, v04-decision-log-spec-review):** FAIL x2, but this is
+  **NOT a capability verdict — do not read the 0% first-try rate as evidence the model
+  is weak at spec review.** Both attempts (and a third internal step) died on
+  `{"code":502,"message":"Upstream error from Nvidia: Service temporarily overloaded",
+  "metadata":{"error_type":"provider_unavailable"}}`. The model was working correctly
+  when it went down: it had run the target check, read the 1000-line spec and the
+  full design doc, and was ~19k tokens into the file sweep with cache reads landing.
+  36,686 tokens spent, $0, no `report.md` produced.
+- **What to do differently:** the free NVIDIA endpoint was unreliable under load on this
+  date. If auditioning this model again, either pair it with a paid fallback lane or
+  re-run at a quieter hour before concluding anything about quality. Its 1M context is
+  genuinely attractive for whole-spec review, so the audition is worth repeating — it
+  has not actually been tested yet.
+- **Free-tier lesson (generalises):** a free provider lane is a zero-cost experiment on
+  price and a non-zero-cost experiment on *wall clock*. This run cost ~9 minutes of
+  retry time and produced no evidence. Budget for that when an exploration lane sits
+  in a run the human is watching.
+
+## GPT-5.5 (codex) — spec review, 2026-08-29
+
+- **2026-08-29 (code-review, v04-decision-log-spec-review):** PASS first try, 121,059
+  tokens. Reviewed a 1000-line Stage 1 spec against two repos and produced 4 findings,
+  **all 4 independently confirmed by the resolver** against live files — one P0 (a
+  scenario's expected values were wrong for its own stated timezone rule, and the
+  scenario had no pinned clock so it would drift with wall-clock time) and three P1s
+  (an internal contradiction between a derivation formula and its own edge-case rule; a
+  boundary scenario whose chosen timestamp did not actually cross the boundary it
+  claimed to test; and an emitted-JSON shape that would have broken the *other* repo's
+  existing no-nulls schema test).
+- **What earned the confidence:** it did the arithmetic itself rather than trusting the
+  spec's prose — it converted the timestamps to America/New_York and found that the
+  spec's own illustration contradicted its own bucketing rule. It also ran
+  `sqlite3 -readonly` against the live ledger exactly as the brief permitted and no
+  further. Zero false positives in the batch.
+- **Useful brief pattern:** telling a reviewer to *verify the artifact's factual claims
+  against the codebase* (the spec carried an appendix of ~14 file/line claims) turned a
+  prose review into an executable one. Worth reusing for any spec that asserts things
+  about a repo.
