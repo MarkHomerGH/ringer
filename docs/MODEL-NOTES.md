@@ -1245,3 +1245,25 @@ that is the right trade. Worth more research lanes.
   orchestrator-staged paths. Also: a worker will "clean" an orchestrator's
   unallowlisted mid-run edit to pass its scope gate (BACKLOG.md append reverted) —
   same root cause.
+
+## the-ping-build step 2 loop (2026-09-01, addendum)
+
+- gpt-5.5 · high (code-feature 1 + code-fix 4 + code-review/verify 4): every build/fix
+  task check-PASS first try except fix-3b — whose recorded FAIL was the ORCHESTRATOR's
+  check regex ($-anchored dir-prefix alternative stopped matching tracked files under
+  skills/sam_outbound/); the worker's work was green and its notes.md included its own
+  cmp evidence exonerating itself. Do NOT read that row as a model failure. Verify seats
+  sharp: the round-3 streak-reset finding came with a scratch reproduction.
+- claude-sonnet-5 (verify seats x4): the build's best evidence again — empirically
+  REPRODUCED a real duplicate Slack send (70s contention repro, receipts inspected),
+  re-ran the repro post-fix to confirm the loud-failure behavior, and ran the
+  sustained-contention variant that exposed the unbounded class. One attempt-1 retry at
+  verify-3 (rescued attempt 2). Empiricism > inspection on this rig, round after round.
+- Loop shape evidence: step-2 findings per round 18 -> 3 -> 3 -> 1 (verify-4 pending at
+  time of writing) — the fix-then-verify loop converged; every dismissal recorded with
+  reasoning so later rounds didn't re-litigate.
+- Orchestrator defects this step (for the pattern ledger): clock-dependent S5 test;
+  write-boundary test banning the store's own audit events (pushed the worker into a
+  bypass it disclosed); the fix-3b scope regex. All three caught by workers' honest
+  disclosures or manual re-runs — reward disclosure, re-run checks by hand before
+  believing a FAIL.
