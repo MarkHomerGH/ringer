@@ -1267,3 +1267,21 @@ that is the right trade. Worth more research lanes.
   bypass it disclosed); the fix-3b scope regex. All three caught by workers' honest
   disclosures or manual re-runs — reward disclosure, re-run checks by hand before
   believing a FAIL.
+
+## the-ping-build step 3 loop (2026-09-01, addendum)
+
+- Loop shape: panel 10 findings (4 GPT-5.5 / 5 Sonnet / 1 Hy3, all seats first-try) ->
+  5 fixed / 4 dismissed-with-reasoning / 1 BACKLOG -> verify round dual CLEAN. Two rounds
+  total — faster convergence than step 2's five.
+- claude-sonnet-5: the build's signature find again — fetched the REAL rendered Settings
+  page, resubmitted the form browser-faithfully, and proved an unrelated save zeroed the
+  ruling-16 breaker (failstreak 30 -> 0). Root cause was a GATE blindness (hand-built POST
+  bodies); the gate now carries a rendered-form-resubmission lock. Verify seat re-ran the
+  repro with its OWN parser rather than trusting the gate helper — the right instinct.
+- gpt-5.5 · high: empirical UI probes (test-client reproductions for every finding, incl.
+  the out-of-range 24:00 form-wedge); verify CLEAN grounded with per-fix evidence.
+- tencent/hy3-preview: first-pass seat found the round's REQUIRED wall-piercer (corrupt
+  window rows 500ing /settings AND blocking the clear control — the exact surface the
+  tolerance existed to protect). 40k tokens/2.5m. First-pass-only routing continues to pay.
+- Orchestrator: no false-fails this step; the step-2 lessons (scratchpad staging, scope
+  allowlists incl. orchestrator paths, hand re-running checks) held.
