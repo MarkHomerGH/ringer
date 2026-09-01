@@ -1285,3 +1285,16 @@ that is the right trade. Worth more research lanes.
   tolerance existed to protect). 40k tokens/2.5m. First-pass-only routing continues to pay.
 - Orchestrator: no false-fails this step; the step-2 lessons (scratchpad staging, scope
   allowlists incl. orchestrator paths, hand re-running checks) held.
+
+## the-ping-build step 4 + build wrap (2026-09-01, addendum)
+
+- Step-4 loop: build first-try check-PASS (plist/wrapper/runbook/pre-push against a
+  5-test wiring gate) -> verify GPT-5.5 FINDINGS(1) LOW (runbook dead-gate heuristic
+  omitted the three quiet-on-purpose states — real, docs-only, orchestrator-applied per
+  the P3-at-loop-stop precedent) + Sonnet CLEAN (sandboxed the wrapper's shell mechanics:
+  quoted env values, arg passthrough, missing-env behavior — all proven with output).
+- Build totals (steps 1-4): 4 feature + 7 fix worker tasks, ALL check-PASS first try
+  (one recorded FAIL was the orchestrator's regex — exonerated above); 9 review/verify
+  panels, every seat's review.md check-PASS; ~60 findings triaged, every dismissal
+  written down. GPT-5.5 build backbone + Sonnet empirical verify + Hy3 first-pass
+  edge-hunting remains the proven trio on this rig.
