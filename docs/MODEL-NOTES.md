@@ -1203,3 +1203,21 @@ that is the right trade. Worth more research lanes.
   real findings in ~6 min wall clock, 2 Blockers confirmed by 3/3 seats independently.
   The convergence signal (same Blocker from three models that couldn't see each other) is
   the thing a single-reviewer Stage 2 cannot produce.
+
+## ping-spec-stage2 verify rounds 2-5 (2026-09-01, addendum)
+
+- gpt-5.5 · high (code-review, 4 verify rounds): first-try x4, 93-119k tokens, 2m32s-4m35s.
+  Round 5 delivered a clean grounded NO FINDINGS — the loop-stop report. Owned C1/rebuild
+  canonicality, write-boundary contradictions, preflight classification.
+- claude-sonnet-5 (code-review, 4 verify rounds): first-try x4, 4m08s-6m16s. Twice caught the
+  ORCHESTRATOR's review record overclaiming a fix that had not landed (grep-audit of record vs
+  text), and verified a launchd claim against the LIVE plist rather than spec prose. One
+  half-right P3 (grepped the wrong repo's BACKLOG for an unqualified cross-repo citation) —
+  still a real pointer defect. Best verify seat on this rig.
+- Orchestrator lessons: (1) verify-by-grep EVERY claimed spec edit before committing — two
+  overclaims + one silently-failed Edit this job; (2) never edit a live panel's checked
+  surface — killed and relaunched round 5 within seconds of a missed-edit discovery instead
+  of editing under reviewers; (3) qualify cross-repo file citations with the repo name.
+- Trial verdict: 5-round panel loop = 23 real findings pre-code, 12/12 executed checks PASS,
+  ~30 min total panel wall clock. Full record:
+  homer-workspace/reviews/v0.4-the-ping_STAGE2_REVIEW.md §12.
