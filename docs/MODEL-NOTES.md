@@ -1126,3 +1126,80 @@ that is the right trade. Worth more research lanes.
   with a trivial deliverable first; promote it to a real review lane only after it has proven it
   can write its output file. An exploration lane riding alongside work someone is waiting on
   turns a zero-dollar experiment into an expensive one.
+
+## deepseek/deepseek-v4-pro (OpenRouter, via opencode)
+
+- 2026-08-30 gdr-v024-build d-version-drift (code-feature, easy: version bump +
+  stdlib pytest drift guard): FAIL on both attempts — but the failure was
+  HARNESS CONFIG, not the model. The manifest passed `writable_roots` engine_args
+  only to the codex tasks; the opencode task had no repo write grant, so every
+  write to the target checkout was `Operation not permitted`. The model's actual
+  work was correct and verifiable: right ROADMAP parse, right tuple comparison,
+  clean stdlib test file, and a sensible fallback (finished files staged in the
+  scratch dir with apply instructions + a proof sketch). Orchestrator applied its
+  files unmodified; test passed green and red-teamed correctly. Do NOT read this
+  run's FAIL as model evidence. Next audition: grant opencode tasks repo write
+  access explicitly (or run it on a scratch-dir-only deliverable) before judging.
+
+- 2026-08-30 v041-deploy-rollback-review reviewer-deploy-drift (code-review, hard: 841-line
+  spec + cross-repo code): STALLED — passed its write-probe first (14s, clean), then hung
+  silently 22+ min mid-file-read on the real review with the process alive and the log dark.
+  Orchestrator killed the lane; the two proven seats (GPT-5.5, sonnet) had already passed.
+  Lesson holds and sharpens: the write-probe proves the harness contract, NOT stamina. Long
+  multi-file review tasks stay with proven models; audition candidates get probe-shaped or
+  single-file tasks only, with a watchdog on log freshness.
+
+- 2026-08-31 v041-deploy-rollback-review rounds 2-5 (code-review, verification passes over a
+  ~950-line spec + cross-repo code): GPT-5.5 4/4 first-try, 92-131s each, ~75-117k tokens.
+  Each round found exactly one real, code-verified required issue narrower than the last,
+  then a clean NO FINDINGS convergence with evidence-cited optional notes. The
+  verify-round pattern (explicit "say NO FINDINGS if clean" contract + required/optional
+  separation) is reliable on this model; sonnet's round-1 seat also delivered the
+  headline contradiction. Keep this pair for spec-review loops.
+
+## 2026-08-31 — v041-build step-1 review round (code-review, homer-agents migration gate)
+- GPT-5.5 (codex, high): PASS first try, 111k tokens, 3m11s. Found the two receipt-integrity holes (pre-snapshot CREATE TABLE; partial-apply loses its receipt) — both code-verified, both became required fixes.
+- claude-sonnet-5 (claude harness): PASS first try, 8m21s. Deepest context pull of the panel: found the THIRD unattended launchd service (runner.py / ea-daily.plist) still honouring EA_MIGRATE — evidence-grade find requiring plist archaeology. Verbose but every claim cited file:line.
+- tencent/hy3-preview (opencode, FIRST AUDITION): PASS first try, 56k tokens, 5m01s. Independently found the snapshot umask race (also found by sonnet) and the env fail-open class; clean structured output; no stall (contrast DeepSeek 2026-08-30). Promising on code-review — audition again before any write lane.
+- Loop close-out (2026-08-31, v041-build step 1): build (GPT-5.5, 2 attempts) → panel R1 (5 real findings) → fix 1 (GPT-5.5, 1st try) → panel R2 (F1–F5 closed; 3 fix-introduced defects, incl. GPT-5.5's plist-archaeology catch that the gate killed the ea-daily dry run) → fix 2 (GPT-5.5, 1st try) → panel R3: CLOSED×3, zero findings. hy3-preview: 3/3 first-try on code-review across the loop, 39–56k tokens, 2–5 min, verdicts always consistent with the pair — promoted candidate for review lanes; still no write-lane evidence.
+
+## 2026-08-31 — v041-build full-loop close-out (steps 1–3, both repos)
+- GPT-5.5 (codex, high) as the sole build/fix engine: 11 tasks (5 feature, 6 fix), 8/11 first-try; two "TIMEOUT" verdicts were harness artifacts (attempt 1 + a check that runs the full suite twice starved attempt 2 inside 1800s) — final worktree state was green both times and passed the check when run manually. LESSON: budget timeout_s ≥ worker + 2×check; or keep fix-round checks to the focused suite.
+- Review panels (code-review, 5 rounds × 3 reviewers, 15 tasks): 15/15 PASS first-try except one Hy3 retry. Findings were real and complementary every round: GPT-5.5 owns receipt/ordering integrity, Sonnet owns cross-file/plist archaeology (found the third launchd service, the global-monkeypatch coupling), Hy3 owns fail-open/bind-reachability classes (the 127.0.0.1 smoke false-red that would have blocked every deploy; the empty-PULL_TEST_ROOT guard bypass).
+- tencent/hy3-preview final audition record: 8 review tasks, 7 first-try, 37–132k tokens, 1.5–14.5 min. PROMOTE to proven for code-review on this rig. No write-lane evidence yet — audition a low-stakes docs/fix lane before trusting it to type.
+
+## 2026-08-31 — v041-build step-5 loop (desk_runner deploy verbs, homer-agents)
+- GPT-5.5 (codex, high): build 1st-try (~157k tokens incl. retry-that-wasn't, see harness note); fix 1 1st-try; fix 2 needed attempt 2 (check demanded a literal "deploy/pull.sh" reference the worker had path-joined — retry with injected failure text closed it). r2/r3 review seats 1st-try; r3 verdict CLOSED.
+- claude-sonnet-5: r2 seat empirically reproduced the stage-masking regression against BOTH repos' real pull.sh (built a throwaway clone, ran the actual script, piped output through the live parser) — the round's best evidence; r3 seat verified all fixes closed with one latent RECOMMENDED. Attempt 2 needed on r2 (attempt 1 wrote review.md into the repo instead of the taskdir — read-only violation caught and cleaned by orchestrator).
+- tencent/hy3-preview: r2 seat STALLED on attempt 1 — log silent 12+ min at "reading the spec" stage, ~57k tokens in, killed by the 1800s task timeout (DeepSeek-pattern; first stall after 8 clean reviews). Attempt 2 passed and independently converged on the same stage-masking REQUIRED as the other two. Caveat sharpened: proven for code-review, but budget for a timeout retry on long re-review specs; watchdog on log freshness applies.
+- HARNESS LESSON: ringer CHECK_TIMEOUT_S=60 is hardcoded (no per-task override) — a check that runs a full 1700-test suite starves and verdicts as TIMEOUT even when the worktree is green. Keep checks to focused suites; the orchestrator runs the full suite at harvest. Feature idea if ever needed: per-task check_timeout_s field.
+- tencent/hy3-preview verify-round verdict (2026-08-31, end of session): step-6 r2 seat FAILED — two attempts, both silent stalls (769KB log, no review.md); step-5 r3 seat needed the timeout+retry to land. Pattern is now 3 stall events in one evening, ALL on long re-review/verify specs, while its five first-pass review seats all passed (4 first-try). Routing rule going forward: hy3 stays on FIRST-PASS review panels; verify/loop-stop rounds run GPT-5.5 + Sonnet only.
+
+## minimax/minimax-m2.7:free (via opencode) — first audition, 2026-09-01
+
+- **2026-09-01 (probe, ping-spec-stage2):** PASS on attempt 2, 14.9s total, $0. Attempt 1 died
+  on an OpenRouter server error (err_ac0a8eef), not model output; retry wrote the exact marker
+  + quoted line + summary. The probe-first rule (2026-08-29 lesson) executed as designed: 15
+  seconds of screening before a panel seat, vs the two prior audition rounds that burned ~1
+  hour on the critical path.
+- **2026-09-01 (code-review, ping-spec-stage2 round 1 — Stage 2 spec panel):** **first-try
+  PASS**, 118,624 tokens, 5m11s, $0. Three-seat panel vs gpt-5.5(high) and claude-sonnet-5:
+  converged with both on the round's two Blockers (independent confirmation signal) AND
+  contributed three findings neither other seat raised (S11 test-conflation, multi-card-per-
+  tick gap, observability-deferral position) — all three survived orchestrator verification
+  and entered the spec. First free-model audition on this rig to produce review value.
+  Standing: promote toward proven on code-review; audition next on a low-stakes write lane
+  before trusting it to type.
+
+## Panel evidence — ping-spec-stage2 (2026-09-01, first spec-stage Ringer panel trial)
+
+- gpt-5.5 · high (code-review): first-try, 149,007 tokens, 4m09s. Owned the C1/rebuild
+  canonicality blocker and the Slack error-class table. Round-2 verify seat same run.
+- claude-sonnet-5 (code-review): first-try, 6m13s. Owned the settings-naming inversion
+  (sam_quiet_* storing the SEND window) — the round's best unique find; also graded the A3
+  breaker risk as INVERTED with plist evidence. No repo-write violation this time (spec
+  carried the explicit NEVER-write line; constraints confirmations all clean).
+- Panel shape verdict: 3 seats / shared adversarial brief / executed structural check = 9
+  real findings in ~6 min wall clock, 2 Blockers confirmed by 3/3 seats independently.
+  The convergence signal (same Blocker from three models that couldn't see each other) is
+  the thing a single-reviewer Stage 2 cannot produce.
