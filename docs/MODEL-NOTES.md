@@ -1221,3 +1221,27 @@ that is the right trade. Worth more research lanes.
 - Trial verdict: 5-round panel loop = 23 real findings pre-code, 12/12 executed checks PASS,
   ~30 min total panel wall clock. Full record:
   homer-workspace/reviews/v0.4-the-ping_STAGE2_REVIEW.md §12.
+
+## the-ping-build steps 1-2 (2026-09-01, hash-locked-gate build pattern)
+
+- gpt-5.5 · high (code-feature x2 + code-fix x2): 4/4 executed-check PASS first try.
+  Step-1 store layer 93k tok/4.4m; step-2 gate module 178k tok/10.5m. Fix rounds
+  surgical (11 exact replacements; a store-API reroute removing 100+ lines of
+  workaround). Twice DISCLOSED its own workarounds prominently in notes.md (direct-SQL
+  bypass, in-process OFF checkpoint) — both traced to ORCHESTRATOR gate defects
+  (over-strict write boundary; clock-dependent S5). The disclosure is the behavior
+  to reward: it turned gate bugs into same-session fixes.
+- SCOREBOARD CORRECTION (step-1 review panel, run ~15:4xZ): gpt-5.5 and hy3 show
+  code-review FAILs and sonnet a retry that session — ALL false. The orchestrator
+  wrote step-2 gate files into the reviewed repo while the panel was live; the
+  check's clean-tree assertion failed every seat on the orchestrator's own
+  contamination. All three reviews were complete and substantive (GPT-5.5 CLEAN
+  w/ deep evidence; Hy3 8 findings incl. the truncated-log re-ping edge; Sonnet 2
+  findings + an empirical crash-window repro). Do NOT read those rows as model
+  failures; do not demote.
+- Orchestrator lessons (2nd + 3rd instance of the same class): NEVER write into a
+  live run's checked surface — gate authoring between rounds goes to the scratchpad
+  until the run completes, and fix-round checks must explicitly allowlist
+  orchestrator-staged paths. Also: a worker will "clean" an orchestrator's
+  unallowlisted mid-run edit to pass its scope gate (BACKLOG.md append reverted) —
+  same root cause.
