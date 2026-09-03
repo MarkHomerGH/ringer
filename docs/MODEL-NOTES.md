@@ -1321,3 +1321,50 @@ that is the right trade. Worth more research lanes.
   into verify briefs: positive confirmations must not use the Finding label.
 - **minimax-m3:free**: passed a write-contract probe first-try (12.7s) — cheap audition
   candidate for a future panel.
+
+## 2026-09-03 — v042-build per-step panels (homer-workspace orchestrator)
+
+- **claude-sonnet-5** (code-review, step-2 panel r1): SECOND read-only violation —
+  ran `git checkout <rev> -- .` twice in the reviewed repo to compare states,
+  then "reverted" with `git checkout HEAD -- <file>`, which silently wiped the
+  orchestrator's uncommitted gate fix sitting in the tree (self-reported in its
+  constraints confirmation; the-ping session was violation #1, writing review.md
+  into the repo). Review CONTENT remains top-tier: live pytest reproduction of
+  gate baselines both rounds, byte-level plist diffs, a real P3 both panels.
+  Spec rule going forward: enumerate forbidden git verbs explicitly (checkout/
+  restore/stash included) — "no state-changing git commands" was not enough.
+  Orchestrator rule: never leave uncommitted work in a repo a live panel reads.
+- **GPT-5.5 high** (code-review): 3 panels, 3 first-try PASS, one real P2 + two
+  real P3s (gate loopholes) — the only seat to catch the sanitize-direction
+  loophole. Backbone confirmed again.
+- **minimax-m2.7:free** (code-review, audition): 2 more first-try panels with
+  substantive probe work (plistlib parses, grep sweeps, HTML5 duplicate-attr
+  reasoning). NO FINDINGS both times where NO FINDINGS was the right answer.
+  Now 4/5 first-try on code-review lifetime.
+- **GPT-5.5 high** (code-feature, step-3 build): first-try executed-check PASS
+  but harvest REJECTED the patch — three collateral behavior changes, each
+  induced by an orchestrator gate over-assertion (exact-dict reason assert vs
+  store's schema_version injection; wrong-repo blocked fixture; cross-run
+  byte-identical assert). Lesson for boss-authored gates: an executed gate is
+  a contract — the worker will satisfy exactly what is written, including the
+  bugs. Verify gate fixtures against settled prior-slice rulings before
+  spawning.
+- **claude-sonnet-5** (code-review, step-2 verify r2, same evening): violation #3 —
+  worker.log states it verified fixes "in a temp edit" of repo files "then
+  restoring the file cleanly", while its report.md claims verification used
+  "synthetic in-memory HTML strings… never modified". Tree verified clean at
+  HEAD afterward (git status empty), so restoration was real — but the seat
+  both broke the explicit no-edit boundary AND misdescribed its method in the
+  report. Pattern across 3 violations: Sonnet treats "read-only" as
+  "restore-before-finishing". Next panel: consider Sonnet seats getting a
+  disposable worktree copy instead of the live repo path.
+- Evening totals for the v042-build panels (all rounds): GPT-5.5 high 8/8
+  review seats to verdict (2 needed a structural-check retry), sole finder of
+  the real P2 + 4 of the 6 P3s that drew fixes; claude-sonnet-5 8/8 (1 retry),
+  best mechanical verification work (live suite runs, byte-offset proofs,
+  single-producer traces) alongside its 2 boundary violations; minimax-m2.7:free
+  4/4 audition seats this build (1 retry), 2 substantive NO-FINDINGS reports,
+  1 accepted-with-reason P2 (exit-code), 1 convergent P3 — promoted evidence
+  for a proven code-review tier. Build lane: GPT-5.5 high 4/4 first-try
+  executed-check PASS (one patch rejected at harvest for gate-induced
+  collateral — orchestrator gate bug, not model failure; noted above).
