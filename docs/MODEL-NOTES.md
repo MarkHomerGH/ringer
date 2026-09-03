@@ -1298,3 +1298,23 @@ that is the right trade. Worth more research lanes.
   panels, every seat's review.md check-PASS; ~60 findings triaged, every dismissal
   written down. GPT-5.5 build backbone + Sonnet empirical verify + Hy3 first-pass
   edge-hunting remains the proven trio on this rig.
+
+## 2026-09-02 — v0.4.2 spec-stage panel (homer-workspace, run v042-deploy-spec-stage2)
+
+- **GPT-5.5 high (codex)**: 7/7 review rounds substantive; one attempt-1 check FAIL
+  (round 5: report lacked the regression section — the executed check caught it, retry
+  clean). Unique finds: acceptance-rule contradictions, gate overclaims, receipt-trigger
+  semantics. ~110-300k tokens/round.
+- **claude-sonnet-5 (claude)**: 7/7 substantive; unique finds: template/row-shape reality
+  (one-note-slot, no-note branches), the portfolio-down founding-bug door, live-plist
+  verification. Round-7 check FAIL ×2 was the CHECK's fault: `_check_v04_review.py`'s
+  Finding-block parser rejected a substantively complete report (labels present on disk)
+  — fix the parser before the next panel rather than counting this against the model.
+- **minimax-m2.7:free (opencode)**: first probe died in 2s on a transient
+  OpenCode/OpenRouter server error (err_a1ad75f9) — NOT a model failure; 3-way diagnostic
+  probe (m2.7 retry / hy3 control / m3:free) went 3/3 PASS minutes later. Round-1 review:
+  real material at $0 (retake-trigger kernel, sam-outbound path) but check FAIL on
+  format — it used `Finding:` blocks for positive confirmations. Brief lesson now baked
+  into verify briefs: positive confirmations must not use the Finding label.
+- **minimax-m3:free**: passed a write-contract probe first-try (12.7s) — cheap audition
+  candidate for a future panel.
