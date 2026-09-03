@@ -1310,6 +1310,9 @@ that is the right trade. Worth more research lanes.
   verification. Round-7 check FAIL ×2 was the CHECK's fault: `_check_v04_review.py`'s
   Finding-block parser rejected a substantively complete report (labels present on disk)
   — fix the parser before the next panel rather than counting this against the model.
+  FIXED same session (homer-workspace 3601665): blocks now parse only inside the
+  '## Findings' section; verified against five real reports (false-FAIL → PASS, the
+  genuine minimax format FAIL unchanged).
 - **minimax-m2.7:free (opencode)**: first probe died in 2s on a transient
   OpenCode/OpenRouter server error (err_a1ad75f9) — NOT a model failure; 3-way diagnostic
   probe (m2.7 retry / hy3 control / m3:free) went 3/3 PASS minutes later. Round-1 review:
