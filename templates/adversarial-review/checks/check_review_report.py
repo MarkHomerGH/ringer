@@ -27,9 +27,20 @@ def main() -> int:
     if not re.search(r"(?im)^#+\s*summary\b", text):
         fails.append("missing ## Summary section")
 
-    finding_blocks = re.split(r"(?im)^Finding\s*:\s*", text)
+    # Parse Finding: blocks ONLY inside the '## Findings' section — scanning the
+    # whole report once flunked an honest review when a Summary sentence
+    # line-wrapped onto the word 'finding:' (homer-workspace v0.4.2 round 7,
+    # 2026-09-02; fixed there as 3601665). No-heading reports fall back to
+    # whole-text scanning.
+    findings_region = text
+    heading = re.search(r"(?im)^#+\s*findings\b.*$", text)
+    if heading:
+        tail = text[heading.end():]
+        stop = re.search(r"(?m)^#+\s*\S", tail)
+        findings_region = tail[: stop.start()] if stop else tail
+    finding_blocks = re.split(r"(?im)^Finding\s*:\s*", findings_region)
     finding_count = len(finding_blocks) - 1
-    no_findings = bool(re.search(r"(?i)\bNO FINDINGS\b", text))
+    no_findings = bool(re.search(r"(?i)\bNO FINDINGS\b", findings_region))
 
     if finding_count == 0 and not no_findings:
         fails.append("report must contain NO FINDINGS or at least one Finding: block")
