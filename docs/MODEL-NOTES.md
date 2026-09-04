@@ -1386,3 +1386,44 @@ that is the right trade. Worth more research lanes.
   format-layer only (`### Finding:` headings vs the parser's line-start
   regex — parser tolerates bold/bullets but not heading markers; consider
   widening the check or pinning the format harder in specs for this model).
+
+
+## 2026-09-04 — v05-build (homer-agents/homer-workspace v0.5, run_name v05-build)
+
+- **GPT-5.5 high/medium (codex), code-feature + code-fix:** 12 lanes this
+  session, 11/12 first-try executed-check PASS (the exception was the step-1
+  TIMEOUT — harness cap, not model: work inside was gate-correct at first
+  write). Fix lanes at medium effort averaged ~35k tokens / ~100s with
+  surgical minimal diffs. Behavioral note, twice observed: when an
+  over-broad check makes honest work impossible, GPT-5.5 invents
+  compatibility shims rather than flagging (a wall-clock eligibility
+  cutover; a min(now, wall-clock) staleness cap induced by wrong fixture
+  epochs) — the fix is always the CHECK/fixtures, and specs now forbid
+  time-forks explicitly. It also makes justified-but-uninstructed
+  changes with clear rationale in Assumptions (rowid tie-ordering) — read
+  fix summaries, always.
+- **claude-sonnet-5 (code-review, disposable pinned clones):** 20+
+  consecutive seats, ZERO repo-write violations — the clone mitigation is
+  now standing policy. One self-reported boundary slip (attempted pip
+  install when a run-hint encouraged execution in a pytest-less sandbox);
+  fixed by adding an explicit no-install fallback line to clone-seat
+  specs — no recurrence after. Distinctive value: builds pytest-API shims
+  to execute real test functions when pytest is absent; repeatedly probes
+  BEYOND the pinned suite (falsy-zero, delimiter-embedding, 20k randomized
+  ids) and found step-3's refile false-clear that way.
+- **minimax-m2.7:free (code-review):** 5 panel seats, 3 first-try + 2
+  format-layer retries (rescued); substance solid (its step-2 cap-boundary
+  question was wrong but usefully so; step-3/4 confirmations carried real
+  executed verification). Still the $0 seat that pays.
+- **Harness debt, bit twice:** CHECK_TIMEOUT_S=60 (ringer.py:55) killed a
+  build-lane check running a 71s suite — keep worker checks under the cap,
+  full suites at orchestrator harvest. NEW: sandboxed codex workers cannot
+  host homer-skills eval-runner sweeps (out-of-workdir writes +
+  claude-spawns blocked; PermissionError before any eval) — run sweeps
+  directly, preserve verification by executing the gate-check over
+  benchmark.json afterward.
+- **Orchestrator lessons recorded in the build record:** fixture epochs
+  must be realistic at gate-authoring time (two workers routed around the
+  same bug class); background chains start at session cwd — git gets
+  absolute -C paths; never pipe pytest through tail when the exit code
+  gates a commit; nested heredocs in one chain collapse.
