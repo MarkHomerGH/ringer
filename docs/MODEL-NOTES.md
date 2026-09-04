@@ -1368,3 +1368,21 @@ that is the right trade. Worth more research lanes.
   for a proven code-review tier. Build lane: GPT-5.5 high 4/4 first-try
   executed-check PASS (one patch rejected at harvest for gate-induced
   collateral — orchestrator gate bug, not model failure; noted above).
+
+## 2026-09-04 — v0.5 filer spec-stage panel (v05-filer-stage2, 7 rounds)
+- **claude-sonnet-5** (code-review, 7 seats): 7/7 first-try, ZERO boundary
+  violations — first full run of the disposable-clone mitigation (seat reads
+  pinned git clones in scratchpad instead of live repos). Mitigation works;
+  keep it standard for Sonnet seats. Review content stayed the panel's best
+  code-archaeology: traced portfolio_unavailable to all three UI consumers
+  (E1), caught the deferred-card display-only overdue path (B1), the
+  unstructured-note extraction gap (D2).
+- **GPT-5.5 high** (code-review, 7 seats): 7/7 first-try. Owned contract
+  contradictions (acceptance-kind ping gap, display-contract hole, defer-CHECK
+  collision). Two legitimate NO FINDINGS rounds at loop-stop — no
+  finding-manufacture under an explicit "clean is correct" instruction.
+- **minimax-m2.7:free** (code-review, 1 seat, proven tier — first non-audition
+  outing): converged on both round-1 P0s at $0; executed-check FAIL ×2 was
+  format-layer only (`### Finding:` headings vs the parser's line-start
+  regex — parser tolerates bold/bullets but not heading markers; consider
+  widening the check or pinning the format harder in specs for this model).
