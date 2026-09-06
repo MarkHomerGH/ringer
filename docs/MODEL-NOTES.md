@@ -14,6 +14,18 @@ checks and raw logs support — no vibes, no worker self-reports.
 
 ## codex (GPT-5-class, own harness)
 
+- 2026-09-06 v051-plate-build step 4 close-out (gpt-5.5): SIX consecutive
+  first-try lanes to finish the build (two parallel feature lanes 30k/47k;
+  three fix lanes 21k/17k at medium; every one clean under the
+  fix-conflicts-first + explicit-prohibitions regimen). Panel seats at
+  high found the build's best defect chain: the SAME unvalidated-parser
+  class at two layers (sonnet caught the render side with an executed
+  repro; codex then caught the serve-side sibling in desk_runner with a
+  false deploy_blocked receipt probe) — evidence that verify rounds with
+  fresh eyes catch layer-siblings a single fix round misses. Sonnet's
+  cross-repo probe (feeding the generator's REAL JSON through the REAL
+  Desk render) is a pattern worth repeating on any two-repo contract.
+
 - 2026-09-06 v051-plate-build steps 3-4 (gpt-5.5): the
   explicit-prohibitions countermeasure holds — step-3 r1 (163k, rejected:
   three conditional-surface dodges around two legacy pins) vs step-3 r2
