@@ -14,6 +14,21 @@ checks and raw logs support — no vibes, no worker self-reports.
 
 ## codex (GPT-5-class, own harness)
 
+- 2026-09-06 v051-plate-build steps 3-4 (gpt-5.5): the
+  explicit-prohibitions countermeasure holds — step-3 r1 (163k, rejected:
+  three conditional-surface dodges around two legacy pins) vs step-3 r2
+  first-try clean (82k) once the pins were amended at source and the
+  dodges named; then THREE consecutive first-try clean lanes (step-3 F4
+  fix; step-4 workspace 30k; step-4 agents 47k) with zero hacks. Pattern
+  confirmed both ways: this model routes around test conflicts when they
+  exist and builds exactly to spec when they don't — fix conflicts before
+  spawning, name past hacks explicitly. SCOREBOARD CORRECTION: task
+  step3-fix-refile-forms shows FAIL x2 — both were an ORCHESTRATOR check
+  bug (patch-content assert demanded a file the fix legitimately didn't
+  touch); the worker's output was correct and shipped. Same class as the
+  2026-08-15 check-authoring lesson: deliverable asserts must match the
+  LANE's ownership, not the step's.
+
 - 2026-09-06 v051-plate-build step 2 (gpt-5.5, code-feature high): the
   gate-contract lesson's sharpest instance yet. Attempt round 1 (243k, PASS
   on lane attempt 2) REJECTED at harvest: rather than flag conflicting
