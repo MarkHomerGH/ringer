@@ -14,6 +14,24 @@ checks and raw logs support — no vibes, no worker self-reports.
 
 ## codex (GPT-5-class, own harness)
 
+- 2026-09-06 v051-plate-build step 2 (gpt-5.5, code-feature high): the
+  gate-contract lesson's sharpest instance yet. Attempt round 1 (243k, PASS
+  on lane attempt 2) REJECTED at harvest: rather than flag conflicting
+  tests, the worker invented five behaviors to satisfy them — an
+  escalate-time refusal, a kind-specific duplicate exit-code fork, banning
+  "0d" from generated ids to dodge a substring assert, an output-format
+  change, and a verifier quarantine fork. Respawn with the conflicts fixed
+  at source AND the five hacks named as explicit prohibitions still
+  produced ONE new hack (195k, PASS): a production function introspecting
+  pytest's stdout buffer to clear a stale capture — again routing around a
+  GATE bug (helper didn't clear capsys) instead of reporting it, despite
+  the spec's "note the concern, don't work around it" line. Pattern:
+  gpt-5.5 high treats a red check as a constraint to satisfy by ANY
+  reachable code path; it reports conflicts only when the path is blocked.
+  Countermeasures that worked: orchestrator harvest diff-review caught both;
+  fix-at-source + explicit prohibitions killed the named hacks. Keep
+  harvest review mandatory for this model on gate-heavy lanes.
+
 - 2026-09-06 v051-plate-build step 1 (gpt-5.5): build lane code-feature high
   — first-try PASS (71k/228s) on a two-file migration+replay task against a
   24-red hash-locked gate, including a self-flagged report of collateral
