@@ -14,6 +14,16 @@ checks and raw logs support — no vibes, no worker self-reports.
 
 ## codex (GPT-5-class, own harness)
 
+- 2026-09-06 v051-plate-build step 1 (gpt-5.5): build lane code-feature high
+  — first-try PASS (71k/228s) on a two-file migration+replay task against a
+  24-red hash-locked gate, including a self-flagged report of collateral
+  failures outside its ownership (two legacy column pins + a Constitution
+  lint conflict) instead of working around them — exactly the honest-worker
+  behavior the ownership boundary is designed to elicit. Fix lane code-fix
+  medium — first-try PASS (24k/29s) on the panel's retired_key:null guard.
+  Panel seat code-review high — first-try PASS (109k/288s), found the
+  round's only real defect (P1) with a live repro. 3/3 first-try day.
+
 - 2026-08-26 ea13-step7-prep rounds 3-5 (gpt-5.5, code-fix, medium): 2/2
   first-try (88k/220s; 58k/132s) on production-incident fixes. Sonnet
   review lane earned its keep decisively: BLOCKED the first metadata fix
@@ -579,6 +589,7 @@ checks and raw logs support — no vibes, no worker self-reports.
 ## Claude Sonnet (claude engine) — 2026-07-28 dealroom-pass2
 - code-review lane: one attempt died on the CLI session limit (retry also blocked; reset 2:30am ET — schedule review lanes away from limit windows). On rerun, produced an executed (not read-only) review that found 2 real defects the 28 passing gate tests missed: a state machine re-arming under sustained adverse input, and an instrument type silently vanishing from a balanced ledger. Worth keeping as the standing validation lane; 29-min runtime.
 - 2026-08-15 gdr-pass-a-facade code-review: the standing lane pays off again. Executed review (built its own probes, ran deno tests against pure modules, round-tripped dates through the live pinned driver, hand-checked parity on 4 fixture variants the pins never touched) found 1 HIGH + 2 MEDIUM against a fully green suite — a real one: `resolveInputRoute` did `INPUT_TABLES[kebabTable]` truthy-check, so `constructor`/`hasOwnProperty`/`__proto__` path segments escaped not_found and reached the raw-SQL function name. Green suite could not see it (no test probed inherited property names). All findings actionable with executed evidence; the two code defects were fixed same session, finding 3 (schema-hardening, engine-unreachable) backlogged. 26-min runtime. CHECK-AUTHORING LESSON: the lane's own check FAILED it — the repo-clean assertion tripped on the ORCHESTRATOR's uncommitted edit sitting in the tree, not any reviewer write (read-only reviewer, repo genuinely untouched). Same class as the 07-31 "commit orchestrator edits before launching" lesson, one level up: a read-only-reviewer's cleanliness check must snapshot `git stash create` state or diff only the reviewer's own writes, never assert a globally-clean tree while the orchestrator is mid-edit.
+- 2026-09-06 v051-plate-build step-1 panel round 1 (code-review, disposable pinned clone): first-try PASS (497s). Independently found and live-reproduced the same retired_key:null replay hole as the codex seat (graded P2 vs P1 — convergence signal), ran the full 1982-test suite in the clone via the venv-interpreter carve-out, and verified the Constitution-check-47b rename against the scanner's actual needle logic. Zero boundary violations; the clone-seat mitigation streak continues (now ~35 consecutive clean seats). The explicit "interpreter binary carve-out" line worked — the seat used the main repo's venv python for clone tests and touched nothing else.
 
 ## qwen3.6:35b (opencode engine, local ollama, homer-studio) — 2026-07-28 local-model-audition
 
@@ -1176,6 +1187,8 @@ that is the right trade. Worth more research lanes.
 - tencent/hy3-preview verify-round verdict (2026-08-31, end of session): step-6 r2 seat FAILED — two attempts, both silent stalls (769KB log, no review.md); step-5 r3 seat needed the timeout+retry to land. Pattern is now 3 stall events in one evening, ALL on long re-review/verify specs, while its five first-pass review seats all passed (4 first-try). Routing rule going forward: hy3 stays on FIRST-PASS review panels; verify/loop-stop rounds run GPT-5.5 + Sonnet only.
 
 ## minimax/minimax-m2.7:free (via opencode) — first audition, 2026-09-01
+- 2026-09-06 (code-review, v051-plate-build step-1 panel round 1): attempt 1 failed the executed check, retry PASSed (134k tokens). Verdict "Ready / NO FINDINGS" while both paid seats converged on the round's only real defect (refile retired_key:null replay hole, P1/P2) — the $0 seat missed it entirely. Also reported "11 pre-existing failures in test_pull_sh.py/test_desk_runner_deploy.py" as fact; the committed tree's full suite was green (1982/1), so that was its own environment misread. Keep for convergence weight; treat its solo environmental claims as unverified until reproduced.
+- 2026-09-05 (code-review, v051-plate-stage2 round 1): attempt 1 wrote no report.md at all (completion failure, not format); retry PASSed (7 findings, 25 anchors). Convergent weight on the round's three-seat P1, but all three of its unique P0 framings were rejected at synthesis (two spec-not-yet-built misreads, one fabricated ROW_COLUMNS claim). Keep as third seat with retry headroom; never solo.
 
 - **2026-09-01 (probe, ping-spec-stage2):** PASS on attempt 2, 14.9s total, $0. Attempt 1 died
   on an OpenRouter server error (err_ac0a8eef), not model output; retry wrote the exact marker
