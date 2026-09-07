@@ -1504,3 +1504,19 @@ that is the right trade. Worth more research lanes.
   ambiguity). Sonnet's unique find — the rearm→refile quarantine misfire,
   traced end-to-end through a pinned test — is the round's best evidence
   that the disposable-clone seat keeps paying.
+
+## 2026-09-07 — v052-breakglass-stage2 round 2 (verify + audition)
+
+- **GPT-5.5 high + claude-sonnet-5 (code-review):** both PASS first-try
+  again (GPT 117k tokens/4m13s). All five round-1 findings independently
+  classified resolved; each seat surfaced a distinct real residue (GPT:
+  stale ruling-pending notes the fold missed; Sonnet: a false-"rearmed"
+  wording collision on the shared quarantine branch, traced to a pinned
+  test). The two-proven-seat verify panel keeps earning its keep.
+- **google/gemini-3.8-flash (audition, code-review):** never ran — 
+  OpenRouter 402 both attempts ("requested up to 32000 tokens, but can
+  only afford 16537"): the key's monthly credit limit is nearly
+  exhausted. NOT a quality signal; rebook the audition once credits are
+  added. Same-day context: minimax-m2.7:free and glm-5.2:free were
+  REMOVED from the catalog — the free-tier lane is thinning; the paid
+  audition needs an actual balance behind the key.
