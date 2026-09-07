@@ -1520,3 +1520,13 @@ that is the right trade. Worth more research lanes.
   added. Same-day context: minimax-m2.7:free and glm-5.2:free were
   REMOVED from the catalog — the free-tier lane is thinning; the paid
   audition needs an actual balance behind the key.
+
+## 2026-09-07 — v052-breakglass-stage2 round 3 (LOOP STOP)
+
+- **GPT-5.5 high + claude-sonnet-5 (code-review):** both PASS first-try,
+  both "Ready, NO FINDINGS", all eight priors classified resolved with
+  line-exact evidence. Sonnet's round-3 pass took 3m00s while still
+  re-verifying every anchor to the line — the verify-round brief (priors
+  enumerated, folds summarized in the spec prompt) keeps later rounds
+  fast AND rigorous. Loop stopped at round 3: fastest of the five
+  spec-stage panel runs.
