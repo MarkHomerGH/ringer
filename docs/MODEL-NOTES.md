@@ -1485,3 +1485,22 @@ that is the right trade. Worth more research lanes.
   same bug class); background chains start at session cwd — git gets
   absolute -C paths; never pipe pytest through tail when the exit code
   gates a commit; nested heredocs in one chain collapse.
+
+## 2026-09-07 — v052-breakglass-stage2 (spec-stage panel, round 1)
+
+- **minimax-m2.7:free (code-review):** seat lost to an OpenRouter upstream
+  outage — three instant "Unexpected server error" failures across the run
+  and a retry (err_16bc224f / err_ac47cda7 / err_4b67b840, ~0.7s each,
+  zero content). Not a quality signal; keep the seat and retry on the next
+  panel round.
+- **tencent/hy3-preview (code-review):** substitute seat FAIL ×2 on the
+  long-form spec-review panel brief (87k tokens of real file reading, but
+  no report.md written on either attempt) — first completion failure after
+  18 passing shorter code-review tasks. Watch: multi-repo panel briefs may
+  exceed what it can carry; prefer scoped reviews for this model, not
+  panel seats.
+- **GPT-5.5 high + claude-sonnet-5 (code-review):** both PASS first-try,
+  convergent on both P1s (schema-CHECK overclaim, cause-overwrite
+  ambiguity). Sonnet's unique find — the rearm→refile quarantine misfire,
+  traced end-to-end through a pinned test — is the round's best evidence
+  that the disposable-clone seat keeps paying.
