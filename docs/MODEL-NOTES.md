@@ -1585,3 +1585,20 @@ that is the right trade. Worth more research lanes.
 - **gpt-5.5 high (code-feature, step-2 lane):** first-try executed-check
   PASS, 34,536 tokens, 3m06s, 103-line four-file patch exactly on
   ownership — second consecutive first-try build lane this slice.
+
+## 2026-09-08 — v052-breakglass-build step-3 lane + panel (round 1)
+
+- **gpt-5.5 high (code-feature, step-3 lane):** first-try executed-check
+  PASS, 32,800 tokens, 1m33s, 102-line two-file patch — THIRD consecutive
+  first-try build lane this slice; covered the deferred-section chip the
+  gate didn't explicitly test (read the ruling, not just the tests).
+- **google/gemini-3.8-flash (code-review):** PASS FIRST-TRY again
+  (143,261 tokens, 10m41s, NO FINDINGS) — fifth consecutive clean lane
+  outing; executed an escaping probe and a phone-width render check
+  unprompted. Slowest seat every round (~2x codex) but substance keeps
+  converging with the proven seats; cost still ~pennies via OpenRouter.
+- **claude-sonnet-5 (code-review):** first-try; byte-diffed the pinned
+  wording against the spec (caught-nothing-because-nothing-there, but
+  the method is the point); live test-client probes of edge submits.
+- **gpt-5.5 high (code-review):** first-try; manual Desk render with
+  mixed fixtures — read the actual HTML rather than trusting the tests.
