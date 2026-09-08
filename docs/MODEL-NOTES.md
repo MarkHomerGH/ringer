@@ -1530,3 +1530,19 @@ that is the right trade. Worth more research lanes.
   enumerated, folds summarized in the spec prompt) keeps later rounds
   fast AND rigorous. Loop stopped at round 3: fastest of the five
   spec-stage panel runs.
+
+## 2026-09-07 — v052-breakglass-stage2 audition (Gemini 3.8 Flash, post-loop)
+
+- **google/gemini-3.8-flash (code-review):** PASS on attempt 2 (~86k
+  tokens, 3m20s, ≈$0.07 all-in). Attempt 1 read files but wrote no
+  report.md — same first-attempt completion slip as hy3 on this
+  long-form brief; the retry prompt (with the check's failure text)
+  rescued it, which hy3's retries never managed. Substance solid:
+  correct verdict, all eight prior findings classified accurately, and
+  its boldest claim (zero pending/todo/tbd language in the spec)
+  audited TRUE by orchestrator grep. Funded by Mark's OpenRouter
+  recharge (auto-recharge now on) expressly so it can work the v0.5.2
+  BUILD phase: promote to probation; route it low-stakes build lanes
+  (docs sweeps, review seats) with executed checks and let the
+  scoreboard decide the rest. Note the pattern: give it retry headroom
+  on long briefs.
