@@ -1563,3 +1563,25 @@ that is the right trade. Worth more research lanes.
 - **claude-sonnet-5 (code-review):** PASS first-try, 8m59s, pinned
   clones, zero boundary violations (standard since v0.5); executed the
   Stage 2 A1 trap directly (pre-0016 retired row through 0016).
+
+## 2026-09-08 — v052-breakglass-build step-2 panel (rounds 1–2)
+
+- **google/gemini-3.8-flash (code-review):** PASS FIRST-TRY twice more —
+  round 1 (154,827 tokens, 9m20s, NO FINDINGS, §6 invariants executed)
+  and the round-2 verify (108,630 tokens, 5m08s, A1 classified with the
+  hash-lock re-verified byte-for-byte). Third and fourth consecutive
+  clean lane outings; the audition's completion slip has not recurred
+  since retry headroom was noted. Probation evidence now strong —
+  scoreboard should be near/at proven for code-review.
+- **gpt-5.5 high (code-review):** the round-1 star: only seat to catch
+  A1 (gate-strength loophole — EA ordering fixtures' natural SQLite
+  order masking a dropped rowid tie-break). P2, high confidence,
+  accepted and folded. 116,945 tokens r1 / 59,746 r2, both first-try.
+- **claude-sonnet-5 (code-review):** MUTATION-TESTED the round-2 fold in
+  scratch copies (both loophole variants provably caught) — the
+  strongest verify-round evidence move of the run; plus a fails-safe P3
+  observation recorded without fold. First-try both rounds, clones
+  only, zero boundary violations.
+- **gpt-5.5 high (code-feature, step-2 lane):** first-try executed-check
+  PASS, 34,536 tokens, 3m06s, 103-line four-file patch exactly on
+  ownership — second consecutive first-try build lane this slice.
