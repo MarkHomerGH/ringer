@@ -1546,3 +1546,20 @@ that is the right trade. Worth more research lanes.
   (docs sweeps, review seats) with executed checks and let the
   scoreboard decide the rest. Note the pattern: give it retry headroom
   on long briefs.
+
+## 2026-09-07 — v052-breakglass-build step-1 panel (round 1)
+
+- **google/gemini-3.8-flash (code-review):** PASS FIRST-TRY on the
+  long-form build-panel brief (213,744 tokens, 10m01s) — the
+  first-attempt completion slip from the audition did NOT recur.
+  NO-FINDINGS report substance-audited: executed 241 tests (gate +
+  neighbors + sam_outbound) in the pinned clone, claims convergent with
+  both proven seats. Second consecutive pass in this lane — probation
+  continues, evidence building toward proven.
+- **gpt-5.5 high (code-review):** PASS first-try, 139k tokens, 5m24s —
+  strongest evidence move of the round: copied the dev escalations.jsonl
+  to /tmp and rebuilt it against the new code (live-shaped backfill
+  proof, zero retired rows without cause).
+- **claude-sonnet-5 (code-review):** PASS first-try, 8m59s, pinned
+  clones, zero boundary violations (standard since v0.5); executed the
+  Stage 2 A1 trap directly (pre-0016 retired row through 0016).
