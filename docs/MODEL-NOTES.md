@@ -1685,3 +1685,25 @@ that is the right trade. Worth more research lanes.
   anchors) failed an ungrounded report correctly — keep it; retries in
   r1 (3/3 seats attempt-2) were first-report structure/grounding
   failures absorbed by the retry loop as designed.
+
+## v0.5.3 build step 2 (2026-09-09, three-model panel + 1 lane)
+
+- **gpt-5.5 (codex):** lane first-try on the biggest step-2 patch (84k
+  tokens, 251 lines, 3-file ownership); review seats caught BOTH wording
+  defects (C4W temporal-cause lie r1; ruling-5 vocabulary bar r2) — the
+  wording-truthfulness lens is a keeper for Desk-facing strings.
+- **claude-sonnet-5:** clean corroboration all 3 rounds incl. a byte-
+  equality probe across code/gate/spec quotes (r3) and the r2 doc-drift
+  catch (spec §15(c) quoting a pre-fold string) — panels should keep one
+  seat reading SPEC TEXT against built strings.
+- **Gemini 3.8 Flash:** wobbly step — r1 engine error ("Unexpected
+  server error", no report, 2 attempts), r2 clean first-try PASS (Ready/
+  NO FINDINGS, 143k tokens), r3 TIMEOUT at 2400s ×2. Pattern: the seat
+  completes or dies on infra, substance is fine when it lands. Keep
+  seated; treat as bonus coverage, never load-bearing for loop-stops.
+- **Orchestrator lessons, recorded:** (1) lane neighbor lists MUST
+  include the standing suite-guard files (ui-escape + check-47) — two
+  step-2 defects only surfaced at the full-suite harvest; (2) a pinned
+  UI string with an apostrophe forces workers to bypass Jinja escaping —
+  pin apostrophe-free strings; (3) `pytest | tail` in && chains swallows
+  the exit code — set -o pipefail, always.
