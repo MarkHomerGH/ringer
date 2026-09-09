@@ -1707,3 +1707,24 @@ that is the right trade. Worth more research lanes.
   UI string with an apostrophe forces workers to bypass Jinja escaping —
   pin apostrophe-free strings; (3) `pytest | tail` in && chains swallows
   the exit code — set -o pipefail, always.
+
+## v0.5.3 build step 3 (2026-09-09, three-model panel + 1 lane)
+
+- **gpt-5.5 (codex):** lane first-try on the notice work; review seat
+  probed the disclosed custom escaper with entity tricks and cleared it.
+- **claude-sonnet-5:** r1 live XSS probe + S3 end-to-end; r2 HONEST HALT
+  on a stale-clone target mismatch (the orchestrator's refresh chain had
+  pulled only one clone) — stop-on-mismatch discipline exactly as
+  briefed; r2B first-try clean with a load-bearing mutation kill.
+- **Gemini 3.8 Flash:** earned the seat back — r1 found the round's only
+  two findings (both valid test-quality gaps the proven seats missed:
+  un-followed redirect assert; missing negative pin on the reverted
+  collateral); r2 clean with its own mutation test, and it caught the
+  brief's off-by-one expected count. Counterweight: it did NOT flag the
+  stale workspace clone sonnet halted on — target-check laxity, watch.
+- **Orchestrator lessons:** (1) gate fixtures must match the surface's
+  preconditions (verified cards; field-free verbs; unquote_plus) — three
+  gaps each provoked the worker into bending production code to satisfy
+  the letter of the gate; harvest review + suite guards caught all
+  three, but the gate writer is the root cause; (2) refresh EVERY pinned
+  clone in the round chain, not just the changed repo's.
