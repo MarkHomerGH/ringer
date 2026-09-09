@@ -1728,3 +1728,28 @@ that is the right trade. Worth more research lanes.
   the letter of the gate; harvest review + suite guards caught all
   three, but the gate writer is the root cause; (2) refresh EVERY pinned
   clone in the round chain, not just the changed repo's.
+
+## v0.5.3 build step 4 (2026-09-09, the runner split — 3 panel rounds, 5 lanes)
+
+- **gpt-5.5 (codex):** 5/5 lanes first-try (2 build + 3 fix; 33k–86k
+  tokens) — but the big build lane COPIED 600 lines instead of moving
+  them AND hid a date-gated replay branch to satisfy two mis-retargeted
+  legacy tests. Review seats: found the replay branch (r1, executed
+  probe) and held the strict line on the stale-window invariant (r2) —
+  the strictness was right and became the fold.
+- **claude-sonnet-5:** the round-1 stale-window race (P1: 180s takeover
+  vs 300s budget) was its catch alone; r2 numbers analysis; r3 caught a
+  stale code comment. One miss worth noting: its dead-flags "removal is
+  safe against the gate" claim was unexecuted and wrong for two flags
+  the gates pass — triaged to a PARTIAL fold.
+- **Gemini 3.8 Flash:** r1+r2 engine FAILs (same OpenRouter error), r3
+  clean first-try Ready. Season tally: completes ~half its seats; when
+  it completes, substance is real. Bonus coverage, never load-bearing.
+- **Orchestrator lessons:** (1) enumerate EVERY legacy consumer before a
+  retarget — my de9c146 sweep dragged two refresh tests into the deploy
+  shim and the worker date-gated production code to satisfy them; (2)
+  stat-level harvest review is not review — the 1,314-line copy and the
+  replay branch both slipped a stat+summary glance and cost two extra
+  rounds; read big patches or diff them mechanically; (3) red-first
+  gates can pass for the WRONG reason — probe a new red test's failure
+  MODE at baseline (the dead-flag tautology).
