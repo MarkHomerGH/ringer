@@ -1602,3 +1602,62 @@ that is the right trade. Worth more research lanes.
   the method is the point); live test-client probes of edge submits.
 - **gpt-5.5 high (code-review):** first-try; manual Desk render with
   mixed fixtures — read the actual HTML rather than trusting the tests.
+
+## 2026-09-08 — Gemini 3.8 Flash PROMOTED to proven (code-review)
+
+- **google/gemini-3.8-flash (code-review):** PROMOTED by Mark's explicit
+  ruling at the v0.5.3 spec-panel session (2026-09-08), the decision point
+  named at the v0.5.2 close. Evidence presented: five consecutive clean
+  lane outings post-audition (four first-try passes on long panel briefs +
+  the round-2 verify), substance spot-audited each round; scoreboard tier
+  already computed proven (6 tasks, 67% first-try — the misses are the
+  audition completion slip and a 402 credit-exhaustion non-signal).
+  Takes a full third seat from the v0.5.3 spec panel onward. Known trait:
+  slowest seat (~2x codex); cost ~pennies via OpenRouter.
+
+## 2026-09-09 — v053-infra-stage2 round 1 (three seats, all PASS first-try)
+
+- **google/gemini-3.8-flash (code-review):** first outing as a PROVEN full
+  seat: PASS first-try (202k tokens), verdict "Ready with small fixes",
+  found the round's only P0 (spec E1 contradicted live pull.sh self-heal —
+  orchestrator-verified true) plus the strongest secrets-cutover finding.
+  Two blemishes on the record: cited a test name that does not exist
+  (`test_dirty_at_target_repairs_instead_of_nooping`) though the behavior
+  claim it supported verified true directly; and claimed the spec
+  "alternates OB1/open-brain" naming — rejected by orchestrator grep.
+  Trust its code citations; re-verify its test-name citations.
+- **gpt-5.5 high (code-review):** PASS first-try, 269k tokens — caught the
+  G2 timeout-semantics contradiction the other seats missed; clean P3 on
+  the stale header baseline.
+- **claude-sonnet-5 (code-review):** PASS first-try on pinned clones —
+  deepest single finding of the round (dirty-list source is the portfolio
+  SNAPSHOT, not a live read — the subtle staleness defect); honestly
+  self-reported skipping the live-ledger read as a gap. All three seats
+  independently converged on the orphaned post-deploy retake (P1).
+
+## 2026-09-09 — v053-infra-stage2 rounds 2–7 (spec panel, LOOP-STOP at round 7)
+
+- **google/gemini-3.8-flash (code-review):** first assignment as a PROVEN
+  seat across a full 7-round spec loop: five first-try passes, two
+  attempt-2 rescues (rounds 4 and 7; causes not recoverable from log
+  tails, substance unaffected), and FOUR clean "Ready — NO FINDINGS"
+  rounds (3, 5, 6, 7) each substance-audited — incl. a live-ledger probe
+  (r3) and a brew-outdated ground-truth check (r5) nobody asked for.
+  Found round 2's only P0 (E1 contradicted pull.sh self-heal). Standing
+  caveat holds: one invented test name (r1 audit note), two misnumbered
+  classification lines (r3) — trust its code citations, re-verify its
+  test-name/numbering details. Cheapest seat by far.
+- **claude-sonnet-5 (code-review):** the panel's closer — sole finder in
+  rounds 6 (F1–F3) and 7 (G1), all four orchestrator-verified true, each
+  a defect in FOLD PROSE both other seats passed clean; earlier caught
+  the orchestrator's own B6 overreach (C3, r3) and the untracked-files
+  definition drift (B4, r2). Pinned-clone discipline spotless, 7/7 runs.
+- **gpt-5.5 high (code-review):** heaviest evidence mover; unique catches:
+  timeout-semantics contradiction (A6), artifact-pair gap (D3), §7
+  rotation-line gap (E1), two-writer race (C1). Clean "Ready — NO
+  FINDINGS" close at r7 with a full anchor-set regression sweep.
+- **Orchestrator lessons, on the record:** (1) briefs must quote the
+  check's own vocabulary — round 2's 3-seat retry was a label-vs-status-
+  word mismatch in MY brief, not model failure; (2) fold prose is the
+  least-reviewed text in a spec loop — rounds 4–7's findings were almost
+  entirely in fold sentences; the verify-round discipline earns its keep.
