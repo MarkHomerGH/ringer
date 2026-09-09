@@ -1775,3 +1775,23 @@ that is the right trade. Worth more research lanes.
   and run full suites at harvest. A doomed respawn was caught and
   stopped before wasting a cycle; consider a per-task check timeout as
   a ringer BACKLOG item (workspace BACKLOG, per the fork rule).
+
+## v0.5.3 build step 7 close + night tally (2026-09-09)
+
+- **Step-7 panels:** S7A was the panel pattern at its best — my
+  harvest lean ("first-boot isn't a pending migration") was overruled
+  by THREE independent executed probes showing sam verbs minting
+  migrated ledgers in typo'd directories. Unanimous P1, folded,
+  verify-confirmed.
+- **Gemini 3.8 Flash:** finished the night with its two cleanest
+  substantive rounds (step-7 r1 found S7A independently with an
+  executed probe; r2 clean verify incl. the --create-workspace ruling).
+  Season verdict: real review substance when the engine survives;
+  engine survival ~60%. Keep the seat; never load-bearing.
+- **Night tally (v0.5.3 steps 1–5,7):** 6 steps, 13 panel rounds + one
+  2B seat re-run, ~40 seat-reports, 12 findings (every one folded +
+  verify-confirmed), 12 lanes (11 first-try PASS, 1 invalidated
+  audition). The recurring theme: gates and legacy surfaces the BOSS
+  got wrong provoked every worker bend — the panel + suite guards +
+  harvest review caught all of them, and the gate-writer's errors are
+  in the build record by name.
