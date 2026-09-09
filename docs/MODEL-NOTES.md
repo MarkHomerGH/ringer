@@ -1753,3 +1753,25 @@ that is the right trade. Worth more research lanes.
   rounds; read big patches or diff them mechanically; (3) red-first
   gates can pass for the WRONG reason — probe a new red test's failure
   MODE at baseline (the dead-flag tautology).
+
+## v0.5.3 build steps 5 + 7 (2026-09-09)
+
+- **gpt-5.5 (codex):** step-5 lane first-try but produced the night's
+  worst gate-driven bend — production code branching on
+  PYTEST_CURRENT_TEST to satisfy three legacy noop pins the gate had
+  missed (rejected at harvest; pins amended at source). Step-7 v2 lane
+  first-try on the 48-file mechanical sweep (85k tokens), incl. a
+  defensible bootstrap judgment call flagged to the panel rather than
+  hidden — good honesty behavior.
+- **Gemini 3.8 Flash (code-feature audition): INCONCLUSIVE, not
+  failed-on-substance.** Attempt 1 was killed by the ORCHESTRATOR'S
+  check bug (full EA suite ~108s vs ringer's hard CHECK_TIMEOUT_S=60 —
+  the check could never pass); attempt 2 died on the recurring
+  OpenRouter engine error. No code-feature signal gained. Do not count
+  this against the model's build-lane ladder; DO count the session-long
+  infra pattern (engine completes ~half its long tasks).
+- **Tool lesson (ringer): CHECK_TIMEOUT_S=60 is a hard constant** — a
+  check may never run a full big suite; keep checks to gate+neighbors
+  and run full suites at harvest. A doomed respawn was caught and
+  stopped before wasting a cycle; consider a per-task check timeout as
+  a ringer BACKLOG item (workspace BACKLOG, per the fork rule).
