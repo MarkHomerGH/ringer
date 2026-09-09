@@ -1661,3 +1661,27 @@ that is the right trade. Worth more research lanes.
   word mismatch in MY brief, not model failure; (2) fold prose is the
   least-reviewed text in a spec loop — rounds 4–7's findings were almost
   entirely in fold sentences; the verify-round discipline earns its keep.
+
+## v0.5.3 build step 1 (2026-09-09, three-model panel + 4 worktree lanes)
+
+- **gpt-5.5 (codex): high on review seats and build lanes, medium on fix
+  lanes — 4/4 lanes first-try executed-check PASS** (37k/26k build,
+  33k/24k fix tokens; 74–131s). Review seats found the round's substance
+  both times a finding existed (A1+A2 r1; B1 r2 — the 24-cell parity
+  matrix in r3 is the pattern to reuse for cross-repo shape contracts).
+- **claude-sonnet-5 (code-review, pinned clones):** 3/3 substantive
+  reports; corroborating executed evidence every round; r3 first-try
+  including a full-suite clone run + scratch-copy mutation kill. Clone
+  discipline spotless again.
+- **Gemini 3.8 Flash (openrouter, code-review):** r1 PASS with convergent
+  substance (its A1 triage argued the losing side — outvoted by executed
+  evidence, fine). r2 check-FAIL was LEGITIMATE: final report carried
+  zero spec anchors (grounding bar worked). r3 FAIL was an OpenRouter
+  API 400 "Corrupted thought signature" killing both attempts — infra
+  flake, not model quality. Watch item: verify-round briefs (mutation +
+  classification) are where this seat wobbles; review-round seat stays
+  earned.
+- **Check note (_check_v04_review.py):** the grounding bar (≥3 spec
+  anchors) failed an ungrounded report correctly — keep it; retries in
+  r1 (3/3 seats attempt-2) were first-report structure/grounding
+  failures absorbed by the retry loop as designed.
