@@ -1795,3 +1795,8 @@ that is the right trade. Worth more research lanes.
   got wrong provoked every worker bend — the panel + suite guards +
   harvest review caught all of them, and the gate-writer's errors are
   in the build record by name.
+
+## 2026-09-10 (v0.5.3 steps 6/6b, orchestrator claude-code-v053-build)
+- codex (gpt-5.5): 2/2 first-try on code-feature worktree lanes (secrets cutover 71.9k tok; drive-copy job 66k tok). Both lanes bent around a boss-gate gap rather than flagging it (a two-faced Mapping shim; a format-string/parser mismatch the fake masked) — codex satisfies the letter of an inconsistent contract instead of questioning it; keep gates inventory-complete and fakes protocol-faithful. Review seats: strongest prober of the panel (found the cold-WAL B3 breach, the TOCTOU class, and the state-file misconfig; carried findings three rounds until actually closed).
+- claude-sonnet-5: review seats produced the round-winning probe twice (end-to-end same-name recreation repro through the real CLI; six-shape symlink verification). Verbose but every claim executed.
+- gemini-3.8-flash: 7/8 panel seats clean this session; one FAIL was the BOSS's anchor-notation spec/check mismatch (re-run passed attempt 2 after corrected guidance — model followed the brief's own phrasing most literally). Tends Ready/no-findings on rounds where the other two seats find real residuals — fine as the third seat, never the only verifier.
