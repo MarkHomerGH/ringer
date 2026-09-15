@@ -1800,3 +1800,43 @@ that is the right trade. Worth more research lanes.
 - codex (gpt-5.5): 2/2 first-try on code-feature worktree lanes (secrets cutover 71.9k tok; drive-copy job 66k tok). Both lanes bent around a boss-gate gap rather than flagging it (a two-faced Mapping shim; a format-string/parser mismatch the fake masked) — codex satisfies the letter of an inconsistent contract instead of questioning it; keep gates inventory-complete and fakes protocol-faithful. Review seats: strongest prober of the panel (found the cold-WAL B3 breach, the TOCTOU class, and the state-file misconfig; carried findings three rounds until actually closed).
 - claude-sonnet-5: review seats produced the round-winning probe twice (end-to-end same-name recreation repro through the real CLI; six-shape symlink verification). Verbose but every claim executed.
 - gemini-3.8-flash: 7/8 panel seats clean this session; one FAIL was the BOSS's anchor-notation spec/check mismatch (re-run passed attempt 2 after corrected guidance — model followed the brief's own phrasing most literally). Tends Ready/no-findings on rounds where the other two seats find real residuals — fine as the third seat, never the only verifier.
+
+## 2026-09-15 — v06-gus-stage2 (homer-workspace Stage 2 spec panel, 3 rounds)
+
+- **Hy3 preview (code-review): AUDITION EARNED THE CHAIR.** Round-1 4th seat
+  (Mark's ruling): first-try PASS, two unique confirmed findings the three
+  proven seats all missed (A3 verifier-attest-fallback hazard; A8 gate
+  predicate that would silence every non-gus card), and it was RIGHT about
+  sam-sweep's StartCalendarInterval where Sonnet was wrong. Round-2
+  twin-lane experiment (Mark's ask — same model, two differentiated briefs:
+  omission hunter + constraint checker): decisively positive. Gap-hunter
+  produced 8 omission findings (7 folded, 1 half-rejected) — a finding KIND
+  no defect-hunting seat produced; constraint-checker independently proved
+  ruling 11 against every live schema CHECK and caught a header judge-ref
+  GPT missed. One blemish: constraint-checker attempt 1 wrote no report.md
+  (rescued attempt 2). Verdict: promote toward proven for code-review;
+  role-focused briefs measurably widen its coverage — reuse the twin-lane
+  pattern.
+- **claude-sonnet-5 (code-review):** strong rounds overall (round-2 B1 was
+  its best find, convergent with GPT), but TWO false/missed claims this
+  session: r1 asserted "no StartCalendarInterval precedent in the fleet;
+  launchctl confirms" — sam-sweep.plist IS StartCalendarInterval 07:00
+  (finding rejected); r2 classified A5 resolved and reported "no orphaned
+  judge references found" — GPT found the S12 contradiction and three
+  orphaned refs. Lesson: Sonnet's negative-existence claims ("none exists",
+  "nothing found") need orchestrator re-verification; its positive findings
+  keep verifying true.
+- **GPT-5.5 high (code-review):** anchor seat both rounds; r1 caught the
+  round's biggest premise error (migrations do NOT self-apply — including
+  refuting the ORCHESTRATOR'S own wrong pull.sh:274 read) and r2's S12 +
+  orphaned-refs sweep. Zero blemishes. Still the load-bearing seat.
+- **Gemini 3.8 Flash (code-review):** r1 attempt 1 wrote no report.md
+  (engine-side; rescued attempt 2); substance real when it landed (A2
+  co-find with Hy3, the actor-vs-source column catch). Pattern unchanged:
+  bonus coverage, never load-bearing.
+- **Orchestrator lessons:** (1) verify seat claims against code even when
+  they contradict your OWN earlier read — pull.sh:274's apply is a smoke
+  temp-DB, not production; (2) when folding scenario-affecting amendments,
+  sweep the SCENARIOS too (S12 said "verbatim" after §4 was fixed);
+  (3) differentiated-brief twin lanes on one cheap MoE model are a real
+  coverage axis, not a gimmick.
