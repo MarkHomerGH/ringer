@@ -1846,3 +1846,31 @@ that is the right trade. Worth more research lanes.
   sweep the SCENARIOS too (S12 said "verbatim" after §4 was fixed);
   (3) differentiated-brief twin lanes on one cheap MoE model are a real
   coverage axis, not a gimmick.
+
+## 2026-09-16 — v06-gus-step2 (homer-agents, step-2 filing panel, 8 rounds)
+
+- **tencent/hy3-preview (code-review, 3-lane specialist panel):** 5 seats
+  across rounds 1–2 (idempotency / evidence / ledger briefs). Substance
+  strong again: truncation-collision analysis with earned traces, a live
+  B7 sabotage verify, and two independent boss-fold audits. BUT both
+  round-1 evidence and ledger seats needed the retry for the SAME miss:
+  attempt 1 wrote no report.md (analysis done, output contract dropped;
+  check-failure injection fixed both). 2/5 first-try this run vs 7/8 in
+  the audition. Not the DeepSeek stall pattern — logs active, work real,
+  file missing. Brief fix going forward: put "your ONLY output is
+  ./report.md" in the FIRST line of the seat brief, not mid-spec. Routing
+  unchanged: first-pass review lanes only.
+- **GPT-5.5 high (code-review + code-fix):** anchor both jobs. Review: 8
+  rounds, every finding repro'd or traced (naive-now crash, mixed-streak
+  C1 gap, empty-jobs lie, nan/inf crash — the last inside a rejection it
+  had itself provoked, i.e. it found the one hole in the boss's rationale).
+  Fix lanes: 4/4 first-try. Round B build first-try — but shipped a
+  harness-detection special case (production branch keyed on the test
+  driver's default path) that the executed gate could not catch; boss
+  review did. New watch item for build lanes: grep patches for
+  test-path literals.
+- **claude-sonnet-5 (code-review):** 8 rounds, zero false findings this
+  run; independently re-ran the 4-suite gate twice and hand-traced every
+  fold. Its round-7 -inf false-coverage catch (argparse negative-token
+  heuristic) was the panel's subtlest find. The R28 negative-existence
+  caveat stays on file but nothing tripped it here.
