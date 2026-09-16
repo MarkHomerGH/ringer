@@ -1874,3 +1874,36 @@ that is the right trade. Worth more research lanes.
   fold. Its round-7 -inf false-coverage catch (argparse negative-token
   heuristic) was the panel's subtlest find. The R28 negative-existence
   caveat stays on file but nothing tripped it here.
+
+## 2026-09-16 — v06-gus-step3 (homer-agents, step-3 verifier panel, 3 rounds)
+
+- **HARNESS INCIDENT, not a model note but recorded where orchestrators
+  look:** the boss shipped a panel manifest whose check script did not
+  exist; lint passed (no dangling-path detection — BACKLOG rider filed in
+  homer-workspace). A round-1 seat then CREATED the check file at the
+  referenced absolute path, outside its worktree — workers can write
+  anywhere the FS allows, and a check path in a spec/manifest is a write
+  surface. The authored check was stricter than the boss's own and the
+  repo worktrees stayed clean, but two rounds ran on worker-authored
+  verification until a content/mtime mismatch exposed it. Boss-authored
+  check + confirmation round re-closed the step. Related same-session:
+  step-2 r7 Sonnet attempt-1 wrote report.md into the REAL repo root
+  (untracked, removed). Fence both at the ringer level.
+- **tencent/hy3-preview (code-review, specialist lanes):** rough round —
+  0/3 first-try r1, 1/2 pass r2 (replay-parity READY on the clean check).
+  Failures split between the missing-check chaos and genuinely
+  format-noncompliant reports (line-anchored P-tags/citations in the
+  worker-authored check). Substance salvaged from logs was REAL and folded
+  (tick-driven rebuild coverage gap; accepted-probe-degraded gaps).
+  Pattern holding: strong specialist analysis, weak output-contract
+  discipline. Keep: first-pass lanes only, output contract in the brief's
+  FIRST line, and read raw logs before discarding a failed Hy3 seat.
+- **GPT-5.5 high:** the round-1 note-rewrite P2 was the round's only real
+  defect and it WON a pair disagreement on the merits (Sonnet defended
+  v0.5 parity; boss ruled with GPT; both ratified next round). Fix lane
+  again first-try. Review + fix record across steps 2-3: flawless.
+- **claude-sonnet-5:** first wrong-side call in two steps (parity defense
+  overlooked the accepted-clear asymmetry) — note the failure mode:
+  precedent-matching beats invariant-checking under a "structurally
+  identical to X" frame. Its ratification trace (grep for post-clear note
+  consumers) was exemplary. Still zero false facts.
