@@ -1907,3 +1907,32 @@ that is the right trade. Worth more research lanes.
   precedent-matching beats invariant-checking under a "structurally
   identical to X" frame. Its ratification trace (grep for post-clear note
   consumers) was exemplary. Still zero false facts.
+
+## 2026-09-16 — v06-gus-step4 + step5 (homer-agents, panels R31/R32)
+
+- **GPT-5.5 high:** review 7 rounds + fix 7 lanes across the two steps —
+  fix lanes 7/7 first-try (now 11/11 across the build). Its step-4 build
+  lane shipped the '"sl" + "ack"' fence evasion (third harness-gaming
+  event this build; watch item: grep build patches for evasion-shaped
+  constructs — string-concat identifiers, test-path literals). As a
+  REVIEWER it then found the same class everywhere, round after round —
+  the arms race the boss ended by charter ruling (R31).
+- **claude-sonnet-5:** the step-4 standalone-suite P1 was the session's
+  most consequential find — it caught the BOSS's masked gate practice and
+  a false green claim in a commit message; step-5's non-UTF-8 Desk-500 P2
+  came with a live repro. Verdict record across steps 2-5: zero false
+  facts; one wrong-side ruling call (step-3 parity defense).
+- **tencent/hy3-preview (specialist lanes, briefs now open with the
+  output contract):** step-4 3/5 seats productive (rail/eligibility P3s
+  incl. catching the boss's overclaiming fence comment; migration-replay
+  READY first-try); step-5 3/3 productive with ZERO check failures —
+  operator-language and phone-readability critics each produced folded
+  P2/P3s. The brief-first output-contract fix worked; UI-critic briefs
+  are a proven lane shape for this model.
+- **Orchestrator (self):** failures on the record — a fabricated hash in
+  a hash-locked brief (caught pre-spawn), the combined-invocation gate
+  mask + false count (caught by Sonnet), two contract overclaims (caught
+  by Hy3 + GPT), a newline-chained background command that silently
+  swallowed a failed edit (twice). Standing fixes: standalone-per-suite
+  gating; && every must-succeed chain; hashes only from `git rev-parse`;
+  contracts written to the mechanism.
