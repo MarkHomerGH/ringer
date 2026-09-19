@@ -1936,3 +1936,9 @@ that is the right trade. Worth more research lanes.
   swallowed a failed edit (twice). Standing fixes: standalone-per-suite
   gating; && every must-succeed chain; hashes only from `git rev-parse`;
   contracts written to the mechanism.
+
+## 2026-09-19 — v0.2 EA bundle Stage 2 panel (homer-agents R33)
+
+- **Hy3 preview (openrouter/tencent/hy3-preview), code-review:** round 1: 4 specialty seats, 1 PASS / 3 FAIL — every FAIL was label-format only (inline italic labels, packed paragraphs); substance was real and folded. Round 2: briefs embedded a literal label-per-line worked example → 2/2 PASS. Lesson: give Hy3 a FORMAT EXAMPLE in the brief, not a looser check. Differentiated briefs keep earning: sweep-vs-disarm composition hole (V1) and the reopen re-dismiss loop (T4) were specialty-lane finds no generalist surfaced.
+- **claude-sonnet-5, code-review:** round-2 FAIL row is a CHECK ARTIFACT, not model behavior — homer-agents `reviews/_check_review.py` clipped the findings region at any heading level and `### C1` sub-headings zeroed it; fixed same day (stops at `^#{1,2}` only), report passes under the fix. Discount that FAIL when reading the scoreboard. Substance strong across all three rounds (independently re-verified C1's code anchors in round 3).
+- **GPT-5.5 high, code-review:** 3/3 first-try PASS across find/verify/confirm rounds (~150k tok median). Steady.
