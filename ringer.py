@@ -1989,27 +1989,39 @@ def shell_newlines_as_separators(command: str) -> str:
     in_single = False
     in_double = False
     escaped = False
-    for char in command:
+    i = 0
+    while i < len(command):
+        char = command[i]
         if escaped:
             result.append(char)
             escaped = False
+            i += 1
             continue
         if char == "\\" and not in_single:
+            if i + 1 < len(command) and command[i + 1] == "\n":
+                result.append(" ")
+                i += 2
+                continue
             result.append(char)
             escaped = True
+            i += 1
             continue
         if char == "'" and not in_double:
             in_single = not in_single
             result.append(char)
+            i += 1
             continue
         if char == '"' and not in_single:
             in_double = not in_double
             result.append(char)
+            i += 1
             continue
         if char == "\n" and not in_single and not in_double:
             result.append(" ; ")
+            i += 1
             continue
         result.append(char)
+        i += 1
     return "".join(result)
 
 
@@ -2159,6 +2171,9 @@ def check_script_candidate(words: list[str]) -> str | None:
                 return None
             if is_short_option_cluster_with_inline_command(word):
                 return None
+            if interpreter_short_option_cluster_takes_operand(basename, word):
+                i += 2
+                continue
             if interpreter_option_takes_operand(basename, word):
                 i += 2
                 continue
@@ -2185,6 +2200,19 @@ def interpreter_inline_option(basename: str, word: str) -> bool:
 
 def is_short_option_cluster_with_inline_command(word: str) -> bool:
     return bool(re.fullmatch(r"-[A-Za-z]+", word)) and ("c" in word[1:] or "m" in word[1:])
+
+
+def interpreter_short_option_cluster_takes_operand(basename: str, word: str) -> bool:
+    if not re.fullmatch(r"-[A-Za-z]+", word):
+        return False
+    last_option = word[-1]
+    if basename in {"sh", "bash", "zsh"}:
+        return last_option in {"o", "O"}
+    if basename.startswith("python"):
+        return last_option in {"W", "X", "Q"}
+    if basename == "node":
+        return last_option == "r"
+    return False
 
 
 def interpreter_option_takes_operand(basename: str, word: str) -> bool:

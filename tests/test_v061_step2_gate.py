@@ -239,6 +239,21 @@ class CandidateAlgorithmTests(unittest.TestCase):
         self.assertEqual(([], [], False), self.fence("cat <<EOF > /abs/f\nbash /abs/x.sh\nEOF"))
         self.assertEqual((["/abs/first.sh"], [], False), self.fence("bash /abs/first.sh && cat <<'EOF'\n/abs/not-a-script\nEOF"))
 
+    # ---- round-3 panel folds (G1–G2) ----
+    def test_g1_cluster_ending_in_a_value_option_consumes_its_operand(self) -> None:
+        self.assertEqual((["/abs/check.sh"], [], False), self.fence("bash -euo pipefail /abs/check.sh"))
+        self.assertEqual((["/abs/check.sh"], [], False), self.fence("bash -uO errexit /abs/check.sh"))
+        self.assertEqual((["/abs/x.py"], [], False), self.fence("python3 -uW ignore /abs/x.py"))
+        self.assertEqual((["/abs/x.py"], [], False), self.fence("python3 -BX dev /abs/x.py"))
+        self.assertEqual(([], [], False), self.fence("bash -euc 'x'"), "a cluster with c still means no candidate")
+
+    def test_g2_line_continuations_are_joined(self) -> None:
+        self.assertEqual((["/abs/a.sh", "/abs/b.sh"], [], False), self.fence("bash /abs/a.sh && \\\n bash /abs/b.sh"))
+        self.assertEqual((["/abs/a.py"], [], False), self.fence("python3 /abs/a.py\\\n && echo ok"))
+        self.assertEqual((["/abs/a.sh"], [], False), self.fence("bash \\\n/abs/a.sh"))
+        for fenced in self.fence("bash /abs/a.sh\\\n")[0]:
+            self.assertNotIn("\n", fenced)
+
     def test_comments_are_stripped_before_tokenising(self) -> None:
         self.assertEqual((["/abs/x.sh"], [], False), self.fence("bash /abs/x.sh  # bash /abs/commented.sh"))
 
