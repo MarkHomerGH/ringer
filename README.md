@@ -164,7 +164,7 @@ lint: clean (1 tasks)
 
 A check that cannot fail is trusting the worker with extra steps.
 
-Lint prints an advisory when a check appears to run a test suite without `check_timeout_s`.
+Lint prints an advisory when a check appears to run a test suite without `check_timeout_s`; advisory findings are printed but never change lint's exit code, and the trigger is a plain substring match on `pytest`, `unittest`, `npm test`, `npm run test`, `go test`, `cargo test`, or `make test`.
 
 ### Baseline: prove your checks before spending tokens
 
@@ -319,7 +319,7 @@ Read it with:
 ./ringer.py models          # per-(model, task_type) scoreboard across the local log
 ```
 
-The scoreboard reports, per model and task_type: tasks, attempts, `pass_rate`, `first_try_pass_rate`, median duration and token count, and `last_seen`. The signal for routing is `first_try_pass_rate` — the share of tasks that passed on attempt 1 without a retry; `pass_rate` is the rescued rate after Ringer's single retry, so the gap between the two is the cost of the retry lane. Slice the log with `--log` (a different JSONL), `--task-type`, `--model`, `--engine`, `--since`, or `--json` for piping elsewhere.
+The scoreboard reports, per model and task_type: tasks, attempts, `pass_rate`, `first_try_pass_rate`, median duration and token count, and `last_seen`. The signal for routing is `first_try_pass_rate` — the share of tasks that passed on attempt 1 without a retry; `pass_rate` is the rescued rate after Ringer's single retry, so the gap between the two is the cost of the retry lane. `Non-model` counts tasks whose verdict came from something other than the worker's output (today: the boss check timing out, recorded as `cause` on every model-log row with values `worker-output` / `check-timeout`), which are excluded from first-try and pass rates. Slice the log with `--log` (a different JSONL), `--task-type`, `--model`, `--engine`, `--since`, or `--json` for piping elsewhere.
 
 History from before the `model` / `task_type` / `retry` columns existed can be seeded in one pass:
 

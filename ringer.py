@@ -6222,9 +6222,9 @@ def aggregate_model_log_rows(
             group["passed"] += 1
         else:
             group["failed"] += 1
-        if (
-            model_log_text(first.get("verdict")).upper() == "PASS"
-            and not model_log_row_is_retry(first)
+        has_non_model_row = len(model_rows) != len(ordered)
+        if model_log_text(first.get("verdict")).upper() == "PASS" and (
+            not has_non_model_row or not model_log_row_is_retry(first)
         ):
             group["_first_try_passed"] += 1
         duration_ms = model_log_int(final.get("duration_ms"))
@@ -6241,6 +6241,8 @@ def aggregate_model_log_rows(
     finalized: list[dict[str, Any]] = []
     for group in groups.values():
         tasks_count = group["tasks"]
+        if tasks_count == 0:
+            continue
         group["pass_rate"] = group["passed"] / tasks_count if tasks_count else 0.0
         group["first_try_pass_rate"] = (
             group["_first_try_passed"] / tasks_count if tasks_count else 0.0
@@ -7678,7 +7680,7 @@ def aggregate_model_scoreboard_rows(
         passed = model_log_text(final.get("verdict")).upper() == "PASS"
         first_passed = (
             model_log_text(first.get("verdict")).upper() == "PASS"
-            and not model_log_row_is_retry(first)
+            and (not has_non_model_row or not model_log_row_is_retry(first))
         )
         for target in (model_entry, breakdown):
             target["tasks"] += 1
@@ -7700,9 +7702,13 @@ def aggregate_model_scoreboard_rows(
     finalized: list[dict[str, Any]] = []
     for entry in models.values():
         tasks_count = int(entry["tasks"])
+        if tasks_count == 0:
+            continue
         breakdown_rows = []
         for breakdown in entry["_task_types"].values():
             b_tasks = int(breakdown["tasks"])
+            if b_tasks == 0:
+                continue
             breakdown_rows.append(
                 {
                     "task_type": breakdown["task_type"],
@@ -10245,7 +10251,8 @@ def dry_run(
         print(f"    dir: {taskdir}")
         print(f"    timeout_s: {task.timeout_s}")
         print(f"    max_attempts: {task.max_attempts}")
-        print(f"    check_timeout_s: {task.check_timeout_s}")
+        if task.check_timeout_s is not None:
+            print(f"    check_timeout_s: {task.check_timeout_s}")
         if task.full_access:
             print(f"    full_access: true allowed={full_access_allowed}")
         else:

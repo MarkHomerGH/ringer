@@ -330,6 +330,11 @@ class EndToEndCauseTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory(prefix="ringer-gate-e2e-")
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
+        # Isolate the spawned ringer.py from the real ~/.ringer (active-run marker, ringer.db).
+        self.old_env = os.environ.copy()
+        self.addCleanup(self._restore_env)
+        os.environ["HOME"] = str(self.root / "home")
+        os.environ["RINGER_HOME"] = str(self.root / "ringer-home")
         self.config_path = self.root / "config.toml"
         self.jsonl_path = self.root / "runs.jsonl"
         self.state_dir = self.root / "state"
@@ -356,7 +361,11 @@ class EndToEndCauseTests(unittest.TestCase):
             encoding="utf-8",
         )
 
-    def run_manifest(self, name: str, task: dict[str, object]) -> subprocess.CompletedProcess[str]:
+    def _restore_env(self) -> None:
+        os.environ.clear()
+        os.environ.update(self.old_env)
+
+    def run_manifest(self, name: str, task: dict[str, object], *, extra_args: tuple[str, ...] = ()) -> subprocess.CompletedProcess[str]:
         manifest_path = self.root / f"{name}.json"
         manifest_path.write_text(
             json.dumps(
@@ -379,6 +388,7 @@ class EndToEndCauseTests(unittest.TestCase):
                 "run", str(manifest_path),
                 "--identity", "gate-runner",
                 "--no-dashboard",
+                *extra_args,
             ],
             cwd=ROOT,
             env=env,
@@ -427,6 +437,47 @@ class EndToEndCauseTests(unittest.TestCase):
         self.assertEqual({"PASS", "FAIL"}, verdicts, rows)
         for row in rows:
             self.assertEqual("worker-output", row.get("cause"), row)
+
+
+    def test_dry_run_prints_the_budget_only_when_set(self) -> None:
+        with_budget = self.run_manifest(
+            "gate-dry-set",
+            task_obj(engine="write_done", check_timeout_s=7),
+            extra_args=("--dry-run",),
+        )
+        self.assertEqual(0, with_budget.returncode, with_budget.stdout)
+        self.assertIn("check_timeout_s: 7", with_budget.stdout)
+        without = self.run_manifest(
+            "gate-dry-unset",
+            task_obj(engine="write_done"),
+            extra_args=("--dry-run",),
+        )
+        self.assertEqual(0, without.returncode, without.stdout)
+        # H2: a manifest without the field prints exactly what it printed before this slice.
+        self.assertNotIn("check_timeout_s", without.stdout)
+
+    def test_advisory_only_manifest_never_refuses_a_run(self) -> None:
+        proc = self.run_manifest(
+            "gate-advisory-run",
+            task_obj(
+                engine="write_done",
+                check="cd /tmp && pytest -q 2>&1 | tail -5; test ${PIPESTATUS[0]} = 0",
+            ),
+            extra_args=("--dry-run",),
+        )
+        self.assertEqual(0, proc.returncode, proc.stdout)
+        self.assertIn("advisory:", proc.stdout)
+        self.assertNotIn("refus", proc.stdout.lower())
+
+    def test_baseline_mode_honours_the_per_task_budget(self) -> None:
+        proc = self.run_manifest(
+            "gate-baseline",
+            task_obj(engine="write_done", check="sleep 4; echo 'FAIL: not killed'; exit 1", check_timeout_s=1, max_attempts=1),
+            extra_args=("--baseline",),
+        )
+        self.assertIn("check timed out after 1s", proc.stdout)
+        self.assertNotIn("check timed out after 60s", proc.stdout)
+        self.assertEqual([], self.rows(), "baseline mode writes no eval rows")
 
 
 class ReadModelBase(unittest.TestCase):
@@ -613,6 +664,78 @@ class AggregatorTests(unittest.TestCase):
                 self.assertEqual(1, agg[0]["non_model_tasks"])
 
 
+    def test_all_excluded_bucket_is_not_a_scored_row(self) -> None:
+        only_excluded = [
+            log_row(run_id="r1", task_key="C", verdict="TIMEOUT", cause="check-timeout"),
+        ]
+        for aggregate in (aggregate_model_log_rows, aggregate_model_scoreboard_rows):
+            with self.subTest(aggregate=aggregate.__name__):
+                # No model-judged task: no scoreboard row at all — never a 0-task / 0% / probation row.
+                self.assertEqual([], aggregate(only_excluded))
+        with_one_model_task = only_excluded + [
+            log_row(run_id="r1", task_key="B", verdict="PASS", cause="worker-output",
+                    logged_at="2026-09-24T10:02:00+00:00"),
+        ]
+        for aggregate in (aggregate_model_log_rows, aggregate_model_scoreboard_rows):
+            with self.subTest(aggregate=aggregate.__name__, case="with-model-task"):
+                agg = aggregate(with_one_model_task)
+                self.assertEqual(1, len(agg))
+                self.assertEqual(1, agg[0]["tasks"])
+                self.assertEqual(1, agg[0]["non_model_tasks"])
+                self.assertAlmostEqual(1.0, float(agg[0]["first_try_pass_rate"]))
+
+    def test_pre_slice_orphan_retry_pass_keeps_its_first_try(self) -> None:
+        # A retry row group_model_log_tasks could not attach (no predecessor) counted as a
+        # first-try PASS before this slice; with no non-model rows involved it still must (H2).
+        orphan = [log_row(run_id="", task_key="", verdict="PASS", retry=True, omit_cause=True)]
+        for aggregate in (aggregate_model_log_rows, aggregate_model_scoreboard_rows):
+            with self.subTest(aggregate=aggregate.__name__):
+                agg = aggregate(orphan)
+                self.assertEqual(1, len(agg))
+                self.assertAlmostEqual(1.0, float(agg[0]["first_try_pass_rate"]))
+                self.assertEqual(0, agg[0]["non_model_tasks"])
+
+    def test_non_model_head_then_fresh_pass_is_a_first_try(self) -> None:
+        # first must be model_rows[0], not ordered[0]: a non-model head followed by a
+        # NON-retry worker PASS is a first-try (Hy3 legacy-path A1).
+        rows = [
+            log_row(run_id="r1", task_key="A", verdict="TIMEOUT", cause="check-timeout",
+                    logged_at="2026-09-24T10:00:00+00:00"),
+            log_row(run_id="r2", task_key="A", verdict="PASS", cause="worker-output",
+                    logged_at="2026-09-24T10:01:00+00:00"),
+        ]
+        for aggregate in (aggregate_model_log_rows, aggregate_model_scoreboard_rows):
+            with self.subTest(aggregate=aggregate.__name__):
+                agg = aggregate(rows)
+                self.assertEqual(1, len(agg))
+                self.assertAlmostEqual(1.0, float(agg[0]["first_try_pass_rate"]))
+
+    def test_mixed_cause_shapes(self) -> None:
+        # worker FAIL then check-timeout on the retry: a failed task, 2 attempts, non-model 1.
+        rows = [
+            log_row(run_id="r1", task_key="A", verdict="FAIL", cause="worker-output",
+                    logged_at="2026-09-24T10:00:00+00:00"),
+            log_row(run_id="r1", task_key="A", verdict="TIMEOUT", retry=True, cause="check-timeout",
+                    logged_at="2026-09-24T10:01:00+00:00"),
+        ]
+        for aggregate in (aggregate_model_log_rows, aggregate_model_scoreboard_rows):
+            with self.subTest(aggregate=aggregate.__name__):
+                agg = aggregate(rows)
+                self.assertEqual(1, agg[0]["tasks"])
+                self.assertEqual(1, agg[0]["failed"])
+                self.assertEqual(2, agg[0]["attempts"])
+                self.assertEqual(1, agg[0]["non_model_tasks"])
+                self.assertAlmostEqual(0.0, float(agg[0]["first_try_pass_rate"]))
+
+    def test_cause_classification_edge_values(self) -> None:
+        blank = [log_row(run_id="r1", task_key="A", verdict="PASS", cause="   ")]
+        unknown = [log_row(run_id="r1", task_key="A", verdict="PASS", cause="fence-changed")]
+        for aggregate in (aggregate_model_log_rows, aggregate_model_scoreboard_rows):
+            with self.subTest(aggregate=aggregate.__name__):
+                self.assertEqual(1, aggregate(blank)[0]["tasks"], "blank cause reads as worker-output")
+                self.assertEqual([], aggregate(unknown), "any cause that is not worker-output is a non-model row")
+
+
 class ModelsCommandTests(ReadModelBase):
     """Same fixture through `ringer.py models` — default DB path and --log fallback."""
 
@@ -637,6 +760,10 @@ class ModelsCommandTests(ReadModelBase):
         self.assertEqual(1, len(payload), payload)
         assert_fixture_numbers(self, payload[0])
         self.assertFalse((Path(os.environ["RINGER_HOME"]) / "ringer.db").exists())
+
+    def test_ringside_models_tab_renders_the_shared_column(self) -> None:
+        html = ringer.inject_models_tab_into_ringside_html(ringer.read_ringside_html())
+        self.assertIn("Non-model", html)
 
     def test_models_table_shows_a_non_model_column(self) -> None:
         write_jsonl(self.log_path, fixture_rows())
