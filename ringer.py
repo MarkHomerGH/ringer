@@ -1941,9 +1941,38 @@ class CheckFenceAnalysis:
 
 
 @dataclass(frozen=True)
+class CheckScriptFingerprint:
+    path: str
+    resolved: str
+    size: int
+    mtime_ns: int
+    sha256: str
+
+
+@dataclass(frozen=True)
 class NormalizedCommandHead:
     words: list[str]
     earlier_absolute_cd: bool = False
+
+
+def fingerprint_check_script(path: str) -> CheckScriptFingerprint | None:
+    expanded = os.path.expanduser(path)
+    resolved = os.path.realpath(expanded)
+    try:
+        stat = os.stat(resolved)
+        if not os.path.isfile(resolved):
+            return None
+        with open(resolved, "rb") as fh:
+            digest = hashlib.sha256(fh.read()).hexdigest()
+    except OSError:
+        return None
+    return CheckScriptFingerprint(
+        path=expanded,
+        resolved=resolved,
+        size=stat.st_size,
+        mtime_ns=stat.st_mtime_ns,
+        sha256=digest,
+    )
 
 
 def analyze_check_fence(check: str) -> CheckFenceAnalysis:
@@ -2583,6 +2612,7 @@ class VerifyResult:
     check_timed_out: bool
     raw_output_excerpt: str
     missing_files: tuple[str, ...] = ()
+    terminal: bool = False
 
 
 class ProcessTree:
@@ -2652,6 +2682,7 @@ class StateWriter:
         max_parallel: int = 1,
         artifact: ArtifactConfig | None = None,
         path: Path | None = None,
+        check_fences: dict[str, tuple[CheckScriptFingerprint | None, ...]] | None = None,
     ) -> None:
         self.run_id = run_id
         self.run_name = run_name
@@ -2661,6 +2692,7 @@ class StateWriter:
         self.runtimes = runtimes
         self.lock = lock
         self.max_parallel = max_parallel
+        self.check_fences = check_fences or {}
         self.state_dir = state_dir
         self.path = path or (state_dir / "runs" / f"{run_id}.json")
         self.pid = os.getpid()
@@ -2810,6 +2842,7 @@ class StateWriter:
                 "started_at": self.started_at.isoformat(),
                 "elapsed_s": max((float(item["elapsed_s"]) for item in tasks), default=0.0),
                 "tasks": tasks,
+                "check_fences": serialize_check_fences(self.check_fences),
                 "totals": totals,
                 "pass": totals["pass"],
                 "fail": totals["fail"],
@@ -2939,6 +2972,15 @@ class StateWriter:
                 self.flush()
             except Exception as exc:
                 print(f"state writer error: {exc}", file=sys.stderr)
+
+
+def serialize_check_fences(
+    check_fences: dict[str, tuple[CheckScriptFingerprint | None, ...]],
+) -> dict[str, list[dict[str, Any] | None]]:
+    return {
+        task_key: [asdict(fingerprint) if fingerprint is not None else None for fingerprint in fingerprints]
+        for task_key, fingerprints in check_fences.items()
+    }
 
 
 def atomic_write_text(path: Path, text: str) -> None:
@@ -9129,7 +9171,17 @@ def run_models_command(config: AppConfig, args: argparse.Namespace) -> int:
 
 
 class Verifier:
-    async def verify(self, task: TaskSpec, taskdir: Path) -> VerifyResult:
+    async def verify(
+        self,
+        task: TaskSpec,
+        taskdir: Path,
+        check_fences: tuple[CheckScriptFingerprint | None, ...] | None = None,
+        check_fence_paths: tuple[str, ...] = (),
+    ) -> VerifyResult:
+        fence_failure = self._check_fence_failure(check_fences, check_fence_paths)
+        if fence_failure is not None:
+            print(fence_failure.raw_output_excerpt)
+            return fence_failure
         check_returncode, check_timed_out, output = await self._run_check(
             task.check,
             taskdir,
@@ -9157,6 +9209,51 @@ class Verifier:
             raw_output_excerpt=output[:2000],
             missing_files=missing_files,
         )
+
+    @staticmethod
+    def _check_fence_failure(
+        check_fences: tuple[CheckScriptFingerprint | None, ...] | None,
+        check_fence_paths: tuple[str, ...],
+    ) -> VerifyResult | None:
+        if check_fences is None:
+            return None
+        for index, recorded in enumerate(check_fences):
+            path = recorded.path if recorded is not None else check_fence_paths[index]
+            current = fingerprint_check_script(path)
+            if current is None:
+                return VerifyResult(
+                    ok=False,
+                    check_returncode=None,
+                    check_timed_out=False,
+                    raw_output_excerpt=(
+                        f"[ringer.py] check script missing at check time: {path} "
+                        "(present at run start); restart the run"
+                    ),
+                    terminal=True,
+                )
+            if recorded is None:
+                return VerifyResult(
+                    ok=False,
+                    check_returncode=None,
+                    check_timed_out=False,
+                    raw_output_excerpt=(
+                        f"[ringer.py] check script missing at check time: {path} "
+                        "(present at run start); restart the run"
+                    ),
+                    terminal=True,
+                )
+            if current.sha256 != recorded.sha256:
+                return VerifyResult(
+                    ok=False,
+                    check_returncode=None,
+                    check_timed_out=False,
+                    raw_output_excerpt=(
+                        f"[ringer.py] check script changed since run start: {recorded.path} "
+                        f"(expected {recorded.sha256[:8]}, found {current.sha256[:8]}); restart the run"
+                    ),
+                    terminal=True,
+                )
+        return None
 
     @staticmethod
     def _is_nonempty_file(path: Path) -> bool:
@@ -9220,6 +9317,7 @@ class RingerRunner:
         self.started_at = datetime.now(timezone.utc)
         self.lock = threading.RLock()
         self.runtimes = [self._task_runtime(task) for task in manifest.tasks]
+        self.check_fence_paths, self.check_fences = self._fingerprint_check_fences()
         self.state_writer = StateWriter(
             self.run_id,
             manifest.run_name,
@@ -9231,6 +9329,7 @@ class RingerRunner:
             self.lock,
             max_parallel=manifest.max_parallel,
             artifact=config.artifact,
+            check_fences=self.check_fences,
         )
         self.dashboard = (
             Dashboard(
@@ -9296,6 +9395,20 @@ class RingerRunner:
             if proc.returncode is None:
                 kill_process_group(proc)
 
+    def _fingerprint_check_fences(
+        self,
+    ) -> tuple[
+        dict[str, tuple[str, ...]],
+        dict[str, tuple[CheckScriptFingerprint | None, ...]],
+    ]:
+        paths_by_task: dict[str, tuple[str, ...]] = {}
+        fingerprints_by_task: dict[str, tuple[CheckScriptFingerprint | None, ...]] = {}
+        for task in self.manifest.tasks:
+            paths = analyze_check_fence(task.check).fenced
+            paths_by_task[task.key] = paths
+            fingerprints_by_task[task.key] = tuple(fingerprint_check_script(path) for path in paths)
+        return paths_by_task, fingerprints_by_task
+
     async def _run_task(self, runtime: TaskRuntime) -> None:
         async with self.semaphore:
             with self.lock:
@@ -9318,7 +9431,12 @@ class RingerRunner:
                     runtime.status = "verifying"
                     if worker.tokens is not None:
                         runtime.tokens = (runtime.tokens or 0) + worker.tokens
-                verify = await self.verifier.verify(runtime.task, runtime.taskdir)
+                verify = await self.verifier.verify(
+                    runtime.task,
+                    runtime.taskdir,
+                    self.check_fences.get(runtime.task.key),
+                    self.check_fence_paths.get(runtime.task.key, ()),
+                )
                 verdict = verdict_for(worker, verify)
                 with self.lock:
                     runtime.last_check_returncode = verify.check_returncode
@@ -9334,7 +9452,7 @@ class RingerRunner:
                         runtime.ended_at_monotonic = time.monotonic()
                     await self._cleanup_worktree_on_pass(runtime)
                     return
-                if attempt < max_attempts and verdict in {"FAIL", "TIMEOUT"}:
+                if attempt < max_attempts and verdict in {"FAIL", "TIMEOUT"} and not verify.terminal:
                     failure_context = build_failure_context(runtime.log_path, verify.raw_output_excerpt)
                     current_spec = (
                         f"{runtime.task.spec}\n\n"
@@ -9733,6 +9851,8 @@ class RingerRunner:
             notes_parts.append(f"missing_expect_files={json.dumps(list(verify.missing_files))}")
         notes_parts.append("raw_check_output_first_2000_chars:")
         notes_parts.append(verify.raw_output_excerpt)
+        cause = verify_failure_cause(verify, worker)
+        verify_method = "check-not-executed" if cause in {"fence-changed", "fence-missing"} else VERIFY_METHOD
         with contextlib.suppress(Exception):
             self._write_steering_observation(
                 runtime,
@@ -9755,7 +9875,7 @@ class RingerRunner:
                 ),
                 "worker_engine": runtime.task.engine,
                 "shepherd_model": SHEPHERD_MODEL,
-                "verify_method": VERIFY_METHOD,
+                "verify_method": verify_method,
                 "verdict": verdict,
                 "duration_ms": duration_ms,
                 "worker_tokens": worker.tokens,
@@ -9767,7 +9887,7 @@ class RingerRunner:
                 "reasoning_effort": reasoning_effort,
                 "task_type": runtime.task.task_type,
                 "retry": retrying,
-                "cause": "check-timeout" if verify.check_timed_out and not worker.timed_out and not worker.error else "worker-output",
+                "cause": cause,
             }
         )
 
@@ -9894,6 +10014,17 @@ def verdict_for(worker: WorkerResult, verify: VerifyResult) -> str:
     if verify.ok:
         return "PASS"
     return "FAIL"
+
+
+def verify_failure_cause(verify: VerifyResult, worker: WorkerResult) -> str:
+    if verify.terminal:
+        if verify.raw_output_excerpt.startswith("[ringer.py] check script changed since run start: "):
+            return "fence-changed"
+        if verify.raw_output_excerpt.startswith("[ringer.py] check script missing at check time: "):
+            return "fence-missing"
+    if verify.check_timed_out and not worker.timed_out and not worker.error:
+        return "check-timeout"
+    return "worker-output"
 
 
 def build_run_id(run_name: str) -> str:
