@@ -47,6 +47,7 @@ from ringer import (  # noqa: E402
     TaskSpec,
     aggregate_model_log_rows,
     aggregate_model_scoreboard_rows,
+    EvalLogger,
     connect_read_model_db,
     create_read_model_schema,
     db_attempt_rows,
@@ -727,6 +728,22 @@ class AggregatorTests(unittest.TestCase):
                 self.assertEqual(1, agg[0]["non_model_tasks"])
                 self.assertAlmostEqual(0.0, float(agg[0]["first_try_pass_rate"]))
 
+    def test_retries_never_exceed_attempts_with_an_all_excluded_task(self) -> None:
+        # Round-2 B2 (Sonnet) = B1 (Hy3): retries must be summed over the same groups as attempts.
+        rows = [
+            log_row(run_id="r1", task_key="B", verdict="PASS", cause="worker-output",
+                    logged_at="2026-09-24T10:00:00+00:00"),
+            log_row(run_id="r1", task_key="C", verdict="TIMEOUT", cause="check-timeout",
+                    logged_at="2026-09-24T10:01:00+00:00"),
+            log_row(run_id="r1", task_key="C", verdict="TIMEOUT", retry=True, cause="check-timeout",
+                    logged_at="2026-09-24T10:02:00+00:00"),
+        ]
+        agg = aggregate_model_scoreboard_rows(rows)
+        self.assertEqual(1, len(agg))
+        self.assertEqual(1, agg[0]["attempts"])
+        self.assertEqual(0, agg[0]["retries"], agg[0])
+        self.assertEqual(1, agg[0]["non_model_tasks"])
+
     def test_cause_classification_edge_values(self) -> None:
         blank = [log_row(run_id="r1", task_key="A", verdict="PASS", cause="   ")]
         unknown = [log_row(run_id="r1", task_key="A", verdict="PASS", cause="fence-changed")]
@@ -764,6 +781,46 @@ class ModelsCommandTests(ReadModelBase):
     def test_ringside_models_tab_renders_the_shared_column(self) -> None:
         html = ringer.inject_models_tab_into_ringside_html(ringer.read_ringside_html())
         self.assertIn("Non-model", html)
+        # Header and body must agree: one <td> per column, and the breakdown row spans them all.
+        header_cells = html.count("<th") - html.count("<thead")
+        self.assertIn("non_model_tasks", html, "the Models tab never renders the new column's data cell")
+        self.assertIn('colspan="13"', html, "breakdown row colspan must match the 13-column header")
+        self.assertNotIn('colspan="12"', html)
+        self.assertGreaterEqual(header_cells, 13)
+
+    def test_since_path_keeps_cause(self) -> None:
+        write_jsonl(self.log_path, fixture_rows())
+        self.rebuild()
+        rows, _ = db_attempt_rows(self.db_path, since="2026-09-01")
+        self.assertTrue(rows)
+        self.assertEqual({"check-timeout", "worker-output"}, {row.get("cause") for row in rows})
+
+    def test_postgres_payload_excludes_cause(self) -> None:
+        class FakeConn:
+            def __init__(self) -> None:
+                self.params: dict[str, object] | None = None
+
+            def execute(self, _sql: str, params: dict[str, object]) -> None:
+                self.params = params
+
+            def close(self) -> None:
+                pass
+
+        logger = EvalLogger(EvalConfig(backend="jsonl", jsonl_path=self.root / "eval.jsonl"))
+        fake = FakeConn()
+        logger._conn = fake
+        logger.log_attempt(
+            {
+                "run_id": "run", "pattern": "ringer-py", "task_key": "a", "spec": "spec",
+                "worker_engine": "opencode", "shepherd_model": "gpt", "verify_method": "executed-check",
+                "verdict": "PASS", "duration_ms": 1, "worker_tokens": 2, "notes": "retry=false",
+                "orchestrator": "tester", "model": "openrouter/x", "task_type": "code-feature",
+                "retry": False, "cause": "worker-output",
+            }
+        )
+        assert fake.params is not None
+        self.assertNotIn("cause", fake.params)
+        self.assertNotIn("retry", fake.params)
 
     def test_models_table_shows_a_non_model_column(self) -> None:
         write_jsonl(self.log_path, fixture_rows())

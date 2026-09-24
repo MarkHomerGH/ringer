@@ -7668,7 +7668,6 @@ def aggregate_model_scoreboard_rows(
         if has_non_model_row:
             model_entry["non_model_tasks"] += 1
             breakdown["non_model_tasks"] += 1
-        model_entry["retries"] += max(0, len(ordered) - 1)
         if not model_rows:
             logged_at = model_log_text(final.get("logged_at"))
             for target in (model_entry, breakdown):
@@ -7691,6 +7690,7 @@ def aggregate_model_scoreboard_rows(
             logged_at = model_log_text(final.get("logged_at"))
             if logged_at > target["last_seen"]:
                 target["last_seen"] = logged_at
+        model_entry["retries"] += max(0, len(ordered) - 1)
         duration_ms = model_log_int(final.get("duration_ms"))
         if duration_ms is not None:
             model_entry["_duration_ms"].append(duration_ms)
