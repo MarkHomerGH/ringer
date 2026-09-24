@@ -339,6 +339,11 @@ class EndToEndCauseTests(unittest.TestCase):
         self.config_path = self.root / "config.toml"
         self.jsonl_path = self.root / "runs.jsonl"
         self.state_dir = self.root / "state"
+        # An engine binary that is executable (passes the launch-time binary check) but whose
+        # interpreter does not exist: exec fails -> worker.error -> verdict ERROR.
+        broken = self.root / "noexec-engine"
+        broken.write_text("#!/nonexistent/ringer-gate-interpreter\n", encoding="utf-8")
+        broken.chmod(0o755)
         self.config_path.write_text(
             "\n".join(
                 [
@@ -353,6 +358,13 @@ class EndToEndCauseTests(unittest.TestCase):
                     "[engines.write_done]",
                     'bin = "/bin/sh"',
                     'args_template = ["-c", "printf done > out.txt"]',
+                    "sandbox_args = []",
+                    "full_access_args = []",
+                    'token_regex = "tokens\\\\s+used\\\\s*:?\\\\s*([0-9][0-9,]*)"',
+                    "",
+                    "[engines.broken]",
+                    f'bin = "{self.root / "noexec-engine"}"',
+                    'args_template = ["-c", "true"]',
                     "sandbox_args = []",
                     "full_access_args = []",
                     'token_regex = "tokens\\\\s+used\\\\s*:?\\\\s*([0-9][0-9,]*)"',
@@ -458,6 +470,18 @@ class EndToEndCauseTests(unittest.TestCase):
         rows = self.rows()
         self.assertEqual(1, len(rows), proc.stdout)
         self.assertEqual("TIMEOUT", str(rows[0]["verdict"]).upper(), rows[0])
+        self.assertEqual("worker-output", rows[0].get("cause"), rows[0])
+
+    def test_worker_error_then_check_timeout_stays_worker_output(self) -> None:
+        # Round-4 D1 (Sonnet): the `not worker.error` arm, executed.
+        proc = self.run_manifest(
+            "gate-error-then-check-timeout",
+            task_obj(engine="broken", check="sleep 4; echo 'FAIL: not killed'; exit 1",
+                     check_timeout_s=1, max_attempts=1),
+        )
+        rows = self.rows()
+        self.assertEqual(1, len(rows), proc.stdout)
+        self.assertEqual("ERROR", str(rows[0]["verdict"]).upper(), rows[0])
         self.assertEqual("worker-output", rows[0].get("cause"), rows[0])
 
     def test_dry_run_prints_the_budget_only_when_set(self) -> None:
