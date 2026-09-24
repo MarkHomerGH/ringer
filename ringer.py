@@ -2189,7 +2189,11 @@ def check_script_candidate(words: list[str]) -> str | None:
 
 def is_interpreter_word(word: str) -> bool:
     basename = os.path.basename(word)
-    return basename in INTERPRETER_BASENAMES or basename in SOURCE_LIKE_BASENAMES or basename.startswith("python")
+    return (
+        basename in INTERPRETER_BASENAMES
+        or basename in SOURCE_LIKE_BASENAMES
+        or bool(re.fullmatch(r"python[0-9.]*w?", basename))
+    )
 
 
 def interpreter_inline_option(basename: str, word: str) -> bool:

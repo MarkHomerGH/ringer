@@ -254,6 +254,12 @@ class CandidateAlgorithmTests(unittest.TestCase):
         for fenced in self.fence("bash /abs/a.sh\\\n")[0]:
             self.assertNotIn("\n", fenced)
 
+    def test_h1_python_prefixed_script_names_are_not_interpreters(self) -> None:
+        # Round-4 D1 (Sonnet): a checker called /abs/python_gate.sh is the script, not an interpreter.
+        self.assertEqual((["/abs/python_gate.sh"], [], False), self.fence("/abs/python_gate.sh /abs/input.txt"))
+        self.assertEqual((["/abs/x.py"], [], False), self.fence("python3.12 /abs/x.py"))
+        self.assertEqual((["/abs/x.py"], [], False), self.fence("pythonw /abs/x.py"))
+
     def test_comments_are_stripped_before_tokenising(self) -> None:
         self.assertEqual((["/abs/x.sh"], [], False), self.fence("bash /abs/x.sh  # bash /abs/commented.sh"))
 
