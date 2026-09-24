@@ -160,7 +160,7 @@ Lint checks a manifest for the mistakes that make swarms hard to trust: checks t
 lint: clean (1 tasks)
 ```
 
-`run` and `demo` also print any lint findings as non-blocking warnings after the manifest loads. They teach at the moment of use; they do not stop a run.
+`run` and `demo` also print advisories and ordinary lint findings after the manifest loads, including tokenizer and unresolved-path advisories; those findings teach at the moment of use and never stop a run. Findings prefixed `ERROR:` (such as a noncanonical model route or missing check script) refuse `run` before any worker launches.
 
 A check that cannot fail is trusting the worker with extra steps.
 

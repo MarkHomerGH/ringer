@@ -163,6 +163,51 @@ class CandidateAlgorithmTests(unittest.TestCase):
         self.assertTrue(failed)
         self.assertEqual([], fenced)
 
+    # ---- round-1 panel folds (E1–E7) ----
+    def test_e1_env_with_assignments_re_skips_assignments(self) -> None:
+        self.assertEqual((["/abs/missing.py"], [], False), self.fence("env FOO=1 python3 /abs/missing.py"))
+        self.assertEqual((["/abs/a.py"], [], False), self.fence("env -i PATH=/x python3 /abs/a.py"))
+        self.assertEqual((["/abs/a.sh"], [], False), self.fence("env FOO=1 env BAR=2 bash /abs/a.sh"))
+
+    def test_e2_value_taking_interpreter_options_skip_their_operand(self) -> None:
+        self.assertEqual((["/abs/missing.sh"], [], False), self.fence("bash -o pipefail /abs/missing.sh"))
+        self.assertEqual((["/abs/check.py"], [], False), self.fence("python3 -W ignore /abs/check.py"))
+        self.assertEqual((["/abs/check.py"], [], False), self.fence("python3 -X dev -u /abs/check.py"))
+        self.assertEqual(([], [], False), self.fence("python3 -W ignore -m pytest"))
+        self.assertEqual((["/abs/a.js"], [], False), self.fence("node -r /abs/setup.js /abs/a.js"))
+        self.assertEqual(([], [], False), self.fence("node -e 'require(\"/abs/x\")'"))
+
+    def test_e3_short_option_clusters_with_c_or_m_yield_nothing(self) -> None:
+        self.assertEqual(([], [], False), self.fence('bash -lc "/abs/x.sh --y"'))
+        self.assertEqual(([], [], False), self.fence("bash -ec 'cd /x && ./y'"))
+        self.assertEqual(([], [], False), self.fence("python3 -mpytest -q"))
+
+    def test_e4_grouping_and_newlines(self) -> None:
+        self.assertEqual((["/abs/missing.sh"], [], False), self.fence("{ /abs/missing.sh; }"))
+        self.assertEqual((["/abs/missing.sh"], [], False), self.fence("(bash /abs/missing.sh)"))
+        self.assertEqual(([], [], False), self.fence("(cd /abs && bash gate.sh)"), "a cd inside a group still counts")
+        self.assertEqual((["/abs/a.sh", "/abs/b.sh"], [], False), self.fence("bash /abs/a.sh\nbash /abs/b.sh"))
+        self.assertEqual((["/abs/a.sh", "/abs/b.sh"], [], False), self.fence("bash /abs/a.sh &&\n  bash /abs/b.sh"))
+        self.assertEqual((["/abs/a.sh"], [], False), self.fence("if bash /abs/a.sh; then echo ok; else exit 1; fi"))
+        self.assertEqual((["/abs/a.sh"], [], False), self.fence("! bash /abs/a.sh"))
+        self.assertEqual((["/abs/missing.py"], [], False), self.fence("RESULT=$(cat /abs/x) bash /abs/missing.py"))
+
+    def test_e5_source_dot_exec_are_fenced_like_interpreters(self) -> None:
+        self.assertEqual((["/abs/lib.sh"], [], False), self.fence("source /abs/lib.sh && bash -c 'x'"))
+        self.assertEqual((["/abs/lib.sh"], [], False), self.fence(". /abs/lib.sh"))
+        self.assertEqual((["/abs/run.sh"], [], False), self.fence("exec /abs/run.sh --now"))
+
+    def test_e6_variable_paths_are_neither_fenced_nor_relative(self) -> None:
+        for check in ('bash "$HOME/x.sh"', "python3 ${DIR}/x.py", "bash ~someone/x.sh"):
+            with self.subTest(check=check):
+                fenced, rel, failed = self.fence(check)
+                self.assertEqual([], fenced)
+                self.assertEqual([], rel, "a variable path is not 'relative' — it is unresolved")
+                self.assertFalse(failed)
+
+    def test_e7_fenced_paths_are_deduplicated(self) -> None:
+        self.assertEqual((["/abs/a.sh"], [], False), self.fence("bash /abs/a.sh && bash /abs/a.sh"))
+
     def test_comments_are_stripped_before_tokenising(self) -> None:
         self.assertEqual((["/abs/x.sh"], [], False), self.fence("bash /abs/x.sh  # bash /abs/commented.sh"))
 
@@ -229,6 +274,23 @@ class LintFenceTests(unittest.TestCase):
         )
         self.assertEqual([f"ERROR: beta: check script {missing} not found"], errors(findings), findings)
 
+    def test_e6_variable_path_gets_its_own_advisory_wording(self) -> None:
+        findings = lint_manifest(manifest_for(task_obj('bash "$HOME/x.sh"')))
+        self.assertEqual([], errors(findings))
+        adv = advisories(findings)
+        self.assertEqual(1, len(adv), findings)
+        self.assertNotIn("worker's own folder", adv[0])
+        self.assertIn("not fenced", adv[0])
+
+    def test_e7_dev_paths_are_never_missing(self) -> None:
+        findings = lint_manifest(manifest_for(task_obj("python3 /dev/stdin < /dev/null")))
+        self.assertEqual([], errors(findings), findings)
+
+    def test_e1_env_assignment_missing_script_is_an_error(self) -> None:
+        missing = self.root / "missing.py"
+        findings = lint_manifest(manifest_for(task_obj(f"env FOO=1 python3 {missing}")))
+        self.assertEqual([f"ERROR: alpha: check script {missing} not found"], errors(findings), findings)
+
     def test_templates_still_lint_clean(self) -> None:
         for path in sorted((ROOT / "templates").glob("*/manifest*.json")):
             with self.subTest(template=path.name):
@@ -292,6 +354,7 @@ class RefusalTests(unittest.TestCase):
 
     def assert_nothing_ran(self) -> None:
         self.assertFalse((self.root / "worker-launched").exists(), "a worker was launched")
+        self.assertFalse((self.root / "work").exists(), "the workdir was created before the refusal")
         self.assertFalse(self.jsonl_path.exists(), "an eval row was written")
         self.assertEqual([], list((self.state_dir / "runs").glob("*.json")) if (self.state_dir / "runs").exists() else [], "a run record was written")
 

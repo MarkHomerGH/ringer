@@ -1919,8 +1919,15 @@ CHECK_TIMEOUT_ADVISORY_RUNNERS = (
     "cargo test",
     "make test",
 )
-COMMAND_SEPARATORS = {"&&", "||", ";", "|", "&"}
+COMMAND_SEPARATORS = {"&&", "||", ";", "|", "&", "(", ")", "{", "}"}
+LEADING_RESERVED_WORDS = {"if", "then", "else", "elif", "while", "until", "do", "time", "!"}
+CLOSING_RESERVED_WORDS = {"fi", "done", "esac"}
 INTERPRETER_BASENAMES = {"sh", "bash", "zsh", "node"}
+SOURCE_LIKE_BASENAMES = {"source", ".", "exec"}
+SHELL_VALUE_OPTIONS = {"-o", "-O", "--rcfile", "--init-file"}
+PYTHON_VALUE_OPTIONS = {"-W", "-X", "-Q"}
+NODE_VALUE_OPTIONS = {"-r", "--require"}
+NODE_INLINE_OPTIONS = {"-e", "--eval", "-p", "--print"}
 ASSIGNMENT_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=.*")
 
 
@@ -1929,10 +1936,11 @@ class CheckFenceAnalysis:
     fenced: tuple[str, ...]
     relative: tuple[str, ...]
     tokenizer_failed: bool
+    unresolved: tuple[str, ...] = ()
 
 
 def analyze_check_fence(check: str) -> CheckFenceAnalysis:
-    text = strip_shell_comments(check)
+    text = shell_newlines_as_separators(strip_shell_comments(check))
     lexer = shlex.shlex(text, posix=True, punctuation_chars=True)
     lexer.whitespace_split = True
     try:
@@ -1942,15 +1950,12 @@ def analyze_check_fence(check: str) -> CheckFenceAnalysis:
 
     fenced: list[str] = []
     relative: list[str] = []
+    unresolved: list[str] = []
     earlier_absolute_cd = False
     for command in split_simple_commands(remove_redirects(tokens)):
         if not command:
             continue
-        words = command_after_assignment_prefix(command)
-        if words and os.path.basename(words[0]) == "env":
-            words = words[1:]
-            while words and words[0].startswith("-"):
-                words = words[1:]
+        words = normalize_simple_command_head(command)
         if not words:
             continue
         if words[0] == "cd":
@@ -1962,9 +1967,40 @@ def analyze_check_fence(check: str) -> CheckFenceAnalysis:
             continue
         if is_absolute_or_tilde(candidate):
             fenced.append(os.path.expanduser(candidate))
+        elif is_unresolved_path(candidate):
+            unresolved.append(candidate)
         elif not earlier_absolute_cd:
             relative.append(candidate)
-    return CheckFenceAnalysis(tuple(fenced), tuple(relative), False)
+    return CheckFenceAnalysis(tuple(dict.fromkeys(fenced)), tuple(relative), False, tuple(unresolved))
+
+
+def shell_newlines_as_separators(command: str) -> str:
+    result: list[str] = []
+    in_single = False
+    in_double = False
+    escaped = False
+    for char in command:
+        if escaped:
+            result.append(char)
+            escaped = False
+            continue
+        if char == "\\" and not in_single:
+            result.append(char)
+            escaped = True
+            continue
+        if char == "'" and not in_double:
+            in_single = not in_single
+            result.append(char)
+            continue
+        if char == '"' and not in_single:
+            in_double = not in_double
+            result.append(char)
+            continue
+        if char == "\n" and not in_single and not in_double:
+            result.append(" ; ")
+            continue
+        result.append(char)
+    return "".join(result)
 
 
 def remove_redirects(tokens: list[str]) -> list[str]:
@@ -2000,13 +2036,36 @@ def split_simple_commands(tokens: list[str]) -> list[list[str]]:
     commands: list[list[str]] = []
     current: list[str] = []
     for token in tokens:
-        if token in COMMAND_SEPARATORS:
+        if is_command_separator(token) or token in CLOSING_RESERVED_WORDS:
             commands.append(current)
             current = []
             continue
         current.append(token)
     commands.append(current)
     return commands
+
+
+def is_command_separator(token: str) -> bool:
+    return token in COMMAND_SEPARATORS or (
+        bool(token) and all(char in "();<>|&\r\n\t " for char in token)
+    )
+
+
+def normalize_simple_command_head(tokens: list[str]) -> list[str]:
+    words = list(tokens)
+    while True:
+        original = words
+        while words and words[0] in LEADING_RESERVED_WORDS:
+            words = words[1:]
+        words = command_after_assignment_prefix(words)
+        if words and os.path.basename(words[0]) == "env":
+            words = words[1:]
+            while words and words[0].startswith("-"):
+                words = words[1:]
+            words = command_after_assignment_prefix(words)
+            continue
+        if words == original:
+            return words
 
 
 def command_after_assignment_prefix(tokens: list[str]) -> list[str]:
@@ -2019,12 +2078,22 @@ def command_after_assignment_prefix(tokens: list[str]) -> list[str]:
 def check_script_candidate(words: list[str]) -> str | None:
     first = words[0]
     if is_interpreter_word(first):
-        for word in words[1:]:
-            if word in {"-c", "-m"}:
-                return None
-            if word.startswith("-"):
-                continue
+        basename = os.path.basename(first)
+        i = 1
+        while i < len(words):
+            word = words[i]
             if word.startswith("--") and "=" in word:
+                i += 1
+                continue
+            if word in {"-c", "-m"} or interpreter_inline_option(basename, word):
+                return None
+            if is_short_option_cluster_with_inline_command(word):
+                return None
+            if interpreter_option_takes_operand(basename, word):
+                i += 2
+                continue
+            if word.startswith("-"):
+                i += 1
                 continue
             return word
         return None
@@ -2035,11 +2104,39 @@ def check_script_candidate(words: list[str]) -> str | None:
 
 def is_interpreter_word(word: str) -> bool:
     basename = os.path.basename(word)
-    return basename in INTERPRETER_BASENAMES or basename.startswith("python")
+    return basename in INTERPRETER_BASENAMES or basename in SOURCE_LIKE_BASENAMES or basename.startswith("python")
+
+
+def interpreter_inline_option(basename: str, word: str) -> bool:
+    if basename == "node" and word in NODE_INLINE_OPTIONS:
+        return True
+    return False
+
+
+def is_short_option_cluster_with_inline_command(word: str) -> bool:
+    return bool(re.fullmatch(r"-[A-Za-z]+", word)) and ("c" in word[1:] or "m" in word[1:])
+
+
+def interpreter_option_takes_operand(basename: str, word: str) -> bool:
+    if basename in {"sh", "bash", "zsh"}:
+        return word in SHELL_VALUE_OPTIONS
+    if basename.startswith("python"):
+        return word in PYTHON_VALUE_OPTIONS
+    if basename == "node":
+        return word in NODE_VALUE_OPTIONS
+    return False
 
 
 def is_absolute_or_tilde(path: str) -> bool:
     return path.startswith("/") or path.startswith("~/")
+
+
+def is_unresolved_path(path: str) -> bool:
+    return path.startswith("$") or bool(re.match(r"^~[A-Za-z0-9_][^/]*(?:/|$)", path))
+
+
+def is_dev_path(path: str) -> bool:
+    return path == "/dev" or path.startswith("/dev/")
 
 
 def lint_manifest(
@@ -2057,13 +2154,17 @@ def lint_manifest(
     for task in manifest.tasks:
         fence = analyze_check_fence(task.check)
         for path in fence.fenced:
-            if not Path(path).is_file():
+            if not is_dev_path(path) and not Path(path).is_file():
                 findings.append(f"ERROR: {task.key}: check script {path} not found")
         for path in fence.relative:
             findings.append(
                 f"advisory: {task.key}: check script {path} is relative — it resolves inside the worker's own folder, "
                 "which the worker can write to, so the fence cannot protect it; give the script an absolute path "
                 "or a prior `cd /abs`"
+            )
+        for path in fence.unresolved:
+            findings.append(
+                f"advisory: {task.key}: check script {path} is an unresolved variable path — not fenced"
             )
         if fence.tokenizer_failed:
             findings.append(
