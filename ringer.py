@@ -1729,6 +1729,7 @@ class TaskSpec:
     engine: str = DEFAULT_ENGINE_NAME
     expect_files: tuple[str, ...] = ()
     timeout_s: int = DEFAULT_TIMEOUT_S
+    check_timeout_s: int | None = None
     max_attempts: int = 2
     redact_spec: bool = False
     full_access: bool = False
@@ -1766,6 +1767,18 @@ class TaskSpec:
         timeout_s = int(obj.get("timeout_s", DEFAULT_TIMEOUT_S))
         if timeout_s <= 0:
             raise ValueError(f"task {key}: timeout_s must be positive")
+        raw_check_timeout_s = obj.get("check_timeout_s")
+        if raw_check_timeout_s is None:
+            check_timeout_s = None
+        elif isinstance(raw_check_timeout_s, bool) or not isinstance(raw_check_timeout_s, int):
+            raise ValueError(
+                f"task {key}: check_timeout_s must be an integer, "
+                f"got {type(raw_check_timeout_s).__name__}"
+            )
+        else:
+            check_timeout_s = raw_check_timeout_s
+            if check_timeout_s <= 0:
+                raise ValueError(f"task {key}: check_timeout_s must be positive")
         # Strict on the fields this release introduces: `1.5` silently
         # truncating to 1 would remove the retry without saying so, and a
         # string is never what the author meant.
@@ -1797,6 +1810,7 @@ class TaskSpec:
             engine=engine,
             expect_files=tuple(str(item) for item in expect_files),
             timeout_s=timeout_s,
+            check_timeout_s=check_timeout_s,
             max_attempts=max_attempts,
             redact_spec=require_bool(obj.get("redact_spec", False), key, "redact_spec"),
             full_access=bool(obj.get("full_access", False)),
@@ -1896,6 +1910,15 @@ class Manifest:
 
 
 FILE_TEST_OPS = {"-e", "-f", "-s", "-d", "-r", "-w", "-x", "-L"}
+CHECK_TIMEOUT_ADVISORY_RUNNERS = (
+    "pytest",
+    "unittest",
+    "npm test",
+    "npm run test",
+    "go test",
+    "cargo test",
+    "make test",
+)
 
 
 def lint_manifest(
@@ -1916,6 +1939,14 @@ def lint_manifest(
         if check_may_fail_silently(task.check):
             findings.append(
                 f"{task.key}: check may fail without printing why; retry prompt and eval log depend on failure output."
+            )
+        if task.check_timeout_s is None and any(
+            runner in task.check for runner in CHECK_TIMEOUT_ADVISORY_RUNNERS
+        ):
+            findings.append(
+                f"advisory: {task.key}: check runs a test suite but has no check_timeout_s "
+                f"(default budget {CHECK_TIMEOUT_S}s) — set check_timeout_s to the suite's real runtime "
+                "so a slow suite is not scored as a model failure."
             )
         if manifest.worktrees and any(is_relative_expect_file(path) for path in task.expect_files):
             findings.append(
@@ -5340,20 +5371,21 @@ def inject_models_tab_into_ringside_html(html: str) -> str:
             `<td class="numeric">${numberOrZeroLocal(row.tasks).toLocaleString()}</td>`,
             `<td class="numeric">${html(percent(row.first_try_pass_rate))}</td>`,
             `<td class="numeric">${html(percent(row.pass_rate))}</td>`,
+            `<td class="numeric">${numberOrZeroLocal(row.non_model_tasks).toLocaleString()}</td>`,
             `<td class="numeric">${row.median_tokens === null || row.median_tokens === undefined ? "" : numberOrZeroLocal(row.median_tokens).toLocaleString()}</td>`,
             `<td>${html(modelDuration(row.median_duration_ms))}</td>`,
             `<td>${html(modelDate(row.last_seen))}</td>`,
             `<td class="model-notes" title="${html(notes)}">${html(row.latest_note || "")}</td>`,
             '</tr>',
           );
-          if (expanded) body.push(`<tr class="model-breakdown"><td colspan="12">${breakdown(bucketId)}</td></tr>`);
+          if (expanded) body.push(`<tr class="model-breakdown"><td colspan="13">${breakdown(bucketId)}</td></tr>`);
         });
         wrap.innerHTML = [
           '<table class="models-table">',
           '<thead><tr>',
           '<th>Model</th><th>Lab</th><th>Harness</th><th>API/Plan</th><th>Tier</th>',
           '<th class="numeric">Tasks</th><th class="numeric">First try</th><th class="numeric">Pass</th>',
-          '<th class="numeric">Tokens (median)</th><th>Speed (median)</th><th>Last used</th><th>Notes</th>',
+          '<th class="numeric">Non-model</th><th class="numeric">Tokens (median)</th><th>Speed (median)</th><th>Last used</th><th>Notes</th>',
           '</tr></thead>',
           `<tbody>${body.join("")}</tbody>`,
           '</table>',
@@ -5858,7 +5890,7 @@ class EvalLogger:
             db_row = {
                 key: value
                 for key, value in row.items()
-                if key not in {"model", "reasoning_effort", "task_type", "retry"}
+                if key not in {"model", "reasoning_effort", "task_type", "retry", "cause"}
             }
             try:
                 self._conn.execute(
@@ -5969,6 +6001,13 @@ def model_log_row_is_retry(row: dict[str, Any]) -> bool:
 
 def model_log_text(value: Any) -> str:
     return "" if value is None else str(value).strip()
+
+
+def model_log_row_cause(row: dict[str, Any]) -> str:
+    cause = row.get("cause")
+    if isinstance(cause, str) and cause.strip():
+        return cause.strip()
+    return "worker-output"
 
 
 def model_log_row_model(row: dict[str, Any]) -> str:
@@ -6122,7 +6161,7 @@ def aggregate_model_log_rows(
                 1 if model_log_row_is_retry(row) else 0,
             ),
         )
-        first = ordered[0]
+        model_rows = [row for row in ordered if model_log_row_cause(row) == "worker-output"]
         final = ordered[-1]
         if model_log_row_is_reserved_fixture(final):
             continue
@@ -6162,18 +6201,31 @@ def aggregate_model_log_rows(
                 "median_duration_ms": None,
                 "median_tokens": None,
                 "last_seen": "",
+                "non_model_tasks": 0,
                 "_first_try_passed": 0,
                 "_duration_ms": [],
                 "_tokens": [],
             },
         )
+        if len(model_rows) != len(ordered):
+            group["non_model_tasks"] += 1
+        if not model_rows:
+            logged_at = model_log_text(final.get("logged_at"))
+            if logged_at > group["last_seen"]:
+                group["last_seen"] = logged_at
+            continue
+        first = model_rows[0]
+        final = model_rows[-1]
         group["tasks"] += 1
         group["attempts"] += len(ordered)
         if model_log_text(final.get("verdict")).upper() == "PASS":
             group["passed"] += 1
         else:
             group["failed"] += 1
-        if model_log_text(first.get("verdict")).upper() == "PASS":
+        if (
+            model_log_text(first.get("verdict")).upper() == "PASS"
+            and not model_log_row_is_retry(first)
+        ):
             group["_first_try_passed"] += 1
         duration_ms = model_log_int(final.get("duration_ms"))
         if duration_ms is not None:
@@ -6207,6 +6259,7 @@ def aggregate_model_log_rows(
                 "attempts": group["attempts"],
                 "passed": group["passed"],
                 "failed": group["failed"],
+                "non_model_tasks": group["non_model_tasks"],
                 "pass_rate": group["pass_rate"],
                 "first_try_pass_rate": group["first_try_pass_rate"],
                 "median_duration_ms": group["median_duration_ms"],
@@ -6239,6 +6292,7 @@ MODEL_SCOREBOARD_COLUMNS = (
     "Tasks",
     "First try",
     "Pass",
+    "Non-model",
     "Tokens (median)",
     "Speed (median)",
     "Last used",
@@ -6693,6 +6747,7 @@ def create_read_model_schema(conn: Any) -> None:
             task_type TEXT,
             retry INTEGER,
             verdict TEXT,
+            cause TEXT,
             duration_ms INTEGER,
             worker_tokens INTEGER,
             orchestrator TEXT
@@ -6752,6 +6807,8 @@ def create_read_model_schema(conn: Any) -> None:
         conn.execute("ALTER TABLE attempts ADD COLUMN reported_model TEXT")
     if not read_model_column_exists(conn, "attempts", "expected_model"):
         conn.execute("ALTER TABLE attempts ADD COLUMN expected_model TEXT")
+    if not read_model_column_exists(conn, "attempts", "cause"):
+        conn.execute("ALTER TABLE attempts ADD COLUMN cause TEXT")
     if not read_model_column_exists(conn, "identity", "lab"):
         conn.execute("ALTER TABLE identity ADD COLUMN lab TEXT")
     if not read_model_column_exists(conn, "identity", "alias"):
@@ -6842,6 +6899,8 @@ def read_catalog_events_from_offset(path: Path, offset: int) -> tuple[list[dict[
 def insert_attempt_rows(conn: Any, rows: list[dict[str, Any]]) -> int:
     payloads: list[tuple[Any, ...]] = []
     for row in rows:
+        cause = row.get("cause")
+        stored_cause = cause.strip() if isinstance(cause, str) and cause.strip() else None
         payloads.append(
             (
                 model_log_text(row.get("run_id")),
@@ -6855,6 +6914,7 @@ def insert_attempt_rows(conn: Any, rows: list[dict[str, Any]]) -> int:
                 model_log_text(row.get("task_type")),
                 1 if model_log_row_is_retry(row) else 0,
                 model_log_text(row.get("verdict")),
+                stored_cause,
                 model_log_int(row.get("duration_ms")),
                 model_log_int(row.get("worker_tokens")),
                 model_log_text(row.get("orchestrator")),
@@ -6866,9 +6926,9 @@ def insert_attempt_rows(conn: Any, rows: list[dict[str, Any]]) -> int:
             INSERT INTO attempts (
                 run_id, task_key, logged_at, engine, model, reported_model, expected_model,
                 reasoning_effort, task_type, retry,
-                verdict, duration_ms, worker_tokens, orchestrator
+                verdict, cause, duration_ms, worker_tokens, orchestrator
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             payloads,
         )
@@ -7182,7 +7242,7 @@ def db_attempt_rows(
         query = """
             SELECT run_id, task_key, logged_at, engine, model, reported_model, expected_model,
                    reasoning_effort, task_type, retry,
-                   verdict, duration_ms, worker_tokens, orchestrator
+                   verdict, cause, duration_ms, worker_tokens, orchestrator
             FROM attempts
         """
         params: list[Any] = []
@@ -7203,6 +7263,7 @@ def db_attempt_rows(
                 "task_type": row["task_type"],
                 "retry": bool(row["retry"]),
                 "verdict": row["verdict"],
+                "cause": row["cause"],
                 "duration_ms": row["duration_ms"],
                 "worker_tokens": row["worker_tokens"],
                 "orchestrator": row["orchestrator"],
@@ -7551,7 +7612,7 @@ def aggregate_model_scoreboard_rows(
                 1 if model_log_row_is_retry(row) else 0,
             ),
         )
-        first = ordered[0]
+        model_rows = [row for row in ordered if model_log_row_cause(row) == "worker-output"]
         final = ordered[-1]
         if model_log_row_is_reserved_fixture(final):
             continue
@@ -7579,6 +7640,7 @@ def aggregate_model_scoreboard_rows(
                 "attempts": 0,
                 "passed": 0,
                 "failed": 0,
+                "non_model_tasks": 0,
                 "retries": 0,
                 "first_try_passed": 0,
                 "last_seen": "",
@@ -7595,12 +7657,29 @@ def aggregate_model_scoreboard_rows(
                 "attempts": 0,
                 "passed": 0,
                 "failed": 0,
+                "non_model_tasks": 0,
                 "first_try_passed": 0,
                 "last_seen": "",
             },
         )
+        has_non_model_row = len(model_rows) != len(ordered)
+        if has_non_model_row:
+            model_entry["non_model_tasks"] += 1
+            breakdown["non_model_tasks"] += 1
+        model_entry["retries"] += max(0, len(ordered) - 1)
+        if not model_rows:
+            logged_at = model_log_text(final.get("logged_at"))
+            for target in (model_entry, breakdown):
+                if logged_at > target["last_seen"]:
+                    target["last_seen"] = logged_at
+            continue
+        first = model_rows[0]
+        final = model_rows[-1]
         passed = model_log_text(final.get("verdict")).upper() == "PASS"
-        first_passed = model_log_text(first.get("verdict")).upper() == "PASS"
+        first_passed = (
+            model_log_text(first.get("verdict")).upper() == "PASS"
+            and not model_log_row_is_retry(first)
+        )
         for target in (model_entry, breakdown):
             target["tasks"] += 1
             target["attempts"] += len(ordered)
@@ -7610,7 +7689,6 @@ def aggregate_model_scoreboard_rows(
             logged_at = model_log_text(final.get("logged_at"))
             if logged_at > target["last_seen"]:
                 target["last_seen"] = logged_at
-        model_entry["retries"] += max(0, len(ordered) - 1)
         duration_ms = model_log_int(final.get("duration_ms"))
         if duration_ms is not None:
             model_entry["_duration_ms"].append(duration_ms)
@@ -7632,6 +7710,7 @@ def aggregate_model_scoreboard_rows(
                     "attempts": breakdown["attempts"],
                     "passed": breakdown["passed"],
                     "failed": breakdown["failed"],
+                    "non_model_tasks": breakdown["non_model_tasks"],
                     "first_try_pass_rate": breakdown["first_try_passed"] / b_tasks if b_tasks else 0.0,
                     "pass_rate": breakdown["passed"] / b_tasks if b_tasks else 0.0,
                     "last_seen": breakdown["last_seen"],
@@ -7657,6 +7736,7 @@ def aggregate_model_scoreboard_rows(
                 "retries": entry["retries"],
                 "passed": entry["passed"],
                 "failed": entry["failed"],
+                "non_model_tasks": entry["non_model_tasks"],
                 "first_try_pass_rate": entry["first_try_passed"] / tasks_count if tasks_count else 0.0,
                 "pass_rate": entry["passed"] / tasks_count if tasks_count else 0.0,
                 "median_duration_ms": median_int(entry["_duration_ms"]),
@@ -8288,13 +8368,14 @@ def render_model_table_pair(
       <td class="num">{fmt_int(row.get("tasks"))}</td>
       <td class="num rate-cell">{rate_cell_html(row.get("first_try_pass_rate"))}</td>
       <td class="num rate-cell">{rate_cell_html(row.get("pass_rate"))}</td>
+      <td class="num">{fmt_int(row.get("non_model_tasks"))}</td>
       <td class="num">{html_escape(fmt_int(row.get("median_tokens"))) if row.get("median_tokens") is not None else ""}</td>
       <td>{html_escape(fmt_scoreboard_duration(row.get("median_duration_ms")))}</td>
       <td>{html_escape(humanized_log_date(row.get("last_seen")))}</td>
       <td class="notes-cell" title="{html_escape(notes_title)}">{html_escape(latest_note)}</td>
     </tr>
     <tr class="detail-row">
-      <td colspan="12">
+      <td colspan="13">
         <details class="model-detail">
           <summary>details for {html_escape(model_display)}</summary>
           <div class="detail-content">
@@ -8343,7 +8424,7 @@ def render_model_scoreboard_html(
         )
     table_rows = "".join(rendered_rows)
     if not table_rows:
-        table_rows = '<tr><td colspan="12" class="muted">No local model evidence matched these filters.</td></tr>'
+        table_rows = '<tr><td colspan="13" class="muted">No local model evidence matched these filters.</td></tr>'
     unregistered_slugs = sorted(
         {str(row.get("model") or "") for row in ordered if row.get("unregistered") and row.get("model")}
     )
@@ -8403,6 +8484,7 @@ def render_model_scoreboard_html(
             <th class="num">Tasks</th>
             <th class="num">First try</th>
             <th class="num">Pass</th>
+            <th class="num">Non-model</th>
             <th class="num">Tokens (median)</th>
             <th>Speed (median)</th>
             <th>Last used</th>
@@ -8467,7 +8549,7 @@ def write_model_scoreboard_html(
 
 def print_model_log_table(path: Path, rows_read: int, skipped: int, groups: list[dict[str, Any]]) -> None:
     print(f"Model log: {path} ({rows_read} rows, {skipped} skipped lines)")
-    widths = (32, 20, 18, 18, 10, 7, 10, 7, 15, 14, 14, 60)
+    widths = (32, 20, 18, 18, 10, 7, 10, 7, 10, 15, 14, 14, 60)
     header = " | ".join(
         f"{name:<{width}}" for name, width in zip(MODEL_SCOREBOARD_COLUMNS, widths)
     )
@@ -8500,6 +8582,7 @@ def print_model_log_table(path: Path, rows_read: int, skipped: int, groups: list
             fmt_int(group.get("tasks")),
             fmt_percent(group.get("first_try_pass_rate")),
             fmt_percent(group.get("pass_rate")),
+            fmt_int(group.get("non_model_tasks")),
             "" if group.get("median_tokens") is None else fmt_int(group.get("median_tokens")),
             fmt_scoreboard_duration(group.get("median_duration_ms")),
             humanized_log_date(group.get("last_seen")),
@@ -8703,7 +8786,11 @@ def run_models_command(config: AppConfig, args: argparse.Namespace) -> int:
 
 class Verifier:
     async def verify(self, task: TaskSpec, taskdir: Path) -> VerifyResult:
-        check_returncode, check_timed_out, output = await self._run_check(task.check, taskdir)
+        check_returncode, check_timed_out, output = await self._run_check(
+            task.check,
+            taskdir,
+            timeout_s=task.check_timeout_s,
+        )
         missing_files = tuple(
             rel for rel in task.expect_files if not self._is_nonempty_file(self._expect_file_path(taskdir, rel))
         )
@@ -8741,7 +8828,12 @@ class Verifier:
         return candidate if candidate.is_absolute() else taskdir / candidate
 
     @staticmethod
-    async def _run_check(command: str, cwd: Path) -> tuple[int | None, bool, str]:
+    async def _run_check(
+        command: str,
+        cwd: Path,
+        timeout_s: int | None = None,
+    ) -> tuple[int | None, bool, str]:
+        effective_timeout_s = timeout_s if timeout_s is not None else CHECK_TIMEOUT_S
         proc = await asyncio.create_subprocess_shell(
             command,
             cwd=str(cwd),
@@ -8752,7 +8844,7 @@ class Verifier:
         )
         timed_out = False
         try:
-            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=CHECK_TIMEOUT_S)
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=effective_timeout_s)
         except asyncio.TimeoutError:
             timed_out = True
             terminate_process_group(proc)
@@ -8763,7 +8855,7 @@ class Verifier:
                 stdout, _ = await proc.communicate()
         output = stdout.decode("utf-8", errors="replace") if stdout else ""
         if timed_out:
-            output += f"\n[ringer.py] check timed out after {CHECK_TIMEOUT_S}s\n"
+            output += f"\n[ringer.py] check timed out after {effective_timeout_s}s\n"
         return proc.returncode, timed_out, output
 
 
@@ -9331,6 +9423,7 @@ class RingerRunner:
                 "reasoning_effort": reasoning_effort,
                 "task_type": runtime.task.task_type,
                 "retry": retrying,
+                "cause": "check-timeout" if verify.check_timed_out else "worker-output",
             }
         )
 
@@ -10152,6 +10245,7 @@ def dry_run(
         print(f"    dir: {taskdir}")
         print(f"    timeout_s: {task.timeout_s}")
         print(f"    max_attempts: {task.max_attempts}")
+        print(f"    check_timeout_s: {task.check_timeout_s}")
         if task.full_access:
             print(f"    full_access: true allowed={full_access_allowed}")
         else:
@@ -11142,7 +11236,8 @@ def main(argv: list[str] | None = None) -> int:
             )
             if findings:
                 print_lint_findings(findings)
-                return 1
+                if any(not finding.startswith("advisory:") for finding in findings):
+                    return 1
             print(f"lint: clean ({len(manifest.tasks)} tasks)")
             return 0
 
