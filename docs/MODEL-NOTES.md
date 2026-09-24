@@ -1949,3 +1949,53 @@ that is the right trade. Worth more research lanes.
 - **claude-sonnet-5, code-review:** round-2 FAIL row is a boss BRIEF artifact (exact `## Summary`/prior-findings headings not spelled in the brief; report substance was full). Discount. Content excellent all three rounds: round-1 S1 (convergent P1) came with the sharpest lifecycle analysis + a rejected-findings section that correctly pre-refuted T2's reachability today; round-3 confirmation independently re-verified H3's rejection by sweeping every actor='ea' call site rather than trusting the boss. Disposable-clone discipline: 3/3 clean, zero repo writes; notes pytest-unavailable and hand-traces instead — reliable pattern.
 - **Hy3 preview (openrouter/tencent/hy3-preview), code-review specialty lanes:** 4 seats, every one produced folded findings. txn-prober: 4 real (T1 retarget staleness, T2 latent IntegrityError, T4 self-pair) — its FAIL×2 was a boss brief artifact (embedded example said `Confidence: 0.8`; check demands words; the model obeyed the brief over the retry hint — literal-example obedience is now a known trait: the example IS the contract). migration auditor and spec-fidelity hunter both PASS with real folds (M1-M4, X1-X3). round-2 fold-omission hunter found H1 (reopen shadows the chip cause — real P2 no other seat saw) though its prior-ID table was scrambled — verify its classifications, trust its findings.
 - **Orchestrator (self), failures on the record:** three contract artifacts cost seats PASSes (numeric Confidence example; unspelled heading names; impossible worker-commit contract). Standing fix ledgered in homer-agents checks-changelog: run the brief's embedded example and section skeleton THROUGH the check before spawning; never require worker commits in worktrees.
+
+## 2026-09-19 — homer-agents R35 (v0.2 EA lane 1 step 1a)
+
+- **gpt-5.5 (high, codex)**: 3/3 build+fold lanes first-try PASS (256k/175k/103k
+  tok) on code-feature/code-fix against hash-locked RED gates; 3 panel seats
+  (r1 find, r2 verify, r3 confirm — r3 needed attempt 2 on a check formality,
+  content sound). r2 minority "Not ready" verdict was CORRECT against Sonnet's
+  Ready-with-small-fixes (boss code trace confirmed V1) — second consecutive
+  run where the GPT seat's stricter verdict beat the pair on a real P1.
+- **claude-sonnet-5 (claude engine)**: 3/3 panel seats first-try PASS; r2
+  scenario truth-table trace and r3 minimality diff-walk were the panel's best
+  mechanical verification again; zero boundary violations.
+- **hy3-preview (opencode/OpenRouter)**: 4 seats, 3 first-try PASS with real
+  unique finds (PERM-2 uid mismatch; H1/H2/H3 fold omissions; argv-drift
+  flag). hy3-receipts FAILed twice on the anchor-vocabulary check artifact
+  (~10 real anchors collapsed to 1 by the regex) — row DISCOUNTED, substance
+  excellent (CC1 halted-receipt P1 was its find). Specialty-brief pattern
+  keeps paying: every Hy3 seat surfaced something the generalists missed.
+
+## tencent/hy3-preview (OpenRouter via opencode)
+- 2026-09-19 (research, grandin-ai-org): BOTH research lanes show FAIL on the scoreboard but the model DELIVERED — orchestrator's check regex was broken (JSON-escaped `\]` inside a grep -E bracket class closed the class early → 0 URLs counted in reports carrying 7-8 real fetched URLs). Manual re-check with fixed regex: both reports pass all substance gates (sections, 1247/1091 words, 8/7 unique URLs, real webfetch grounding incl. curl status verification). Treat these two FAIL rows as orchestrator error, not model failure. Hy3 is genuinely good at fetch-grounded public-web research through opencode: it verified its own URLs with curl before finishing. Lesson: never put escaped `]` inside a bracket expression that travels through JSON — use `[^[:space:])>\"]` or trim the class.
+
+## 2026-09-19 — homer-agents R36 (v0.2 EA lane 1 step 1b; lane 1 complete)
+
+- **gpt-5.5 (high, codex)**: 3 build/fold lanes (2× attempt-2 self-repairs,
+  1 first-try; 256k/211k/91k tok) + 3 panel seats. The r2 minority "Not
+  ready" was RIGHT for the THIRD consecutive round-2 (identical-flags hole,
+  boss-trace confirmed) — treat a GPT-seat strict verdict on a verify round
+  as a strong prior.
+- **claude-sonnet-5 (claude engine)**: 3 seats first-try; its r1 sweep (14
+  findings incl. the same-call-pair carve-out traced to a boss gate
+  fixture, the batch-starvation wedge, and TWO defects in the boss's own
+  gates) was the panel's best single report this bundle. Keep its
+  gate-blind-spot brief standing.
+- **hy3-preview**: 5 seats, 4 first-try, zero check-artifact failures (the
+  R35 anchor-form countermeasure held). Specialty briefs keep paying:
+  lifecycle prober found the dead-target-in-/duplicates resurrection; the
+  state-machine auditor independently converged on the press race and the
+  drain/batch double-extraction.
+
+## 2026-09-24 — v061-ringer-stage2 (homer-workspace Stage 2 spec panel on THIS fork's v0.6.1 spec, round 1)
+
+Three seats, all PASS first-try, all "Needs another iteration", unanimous on the three P0/P1 findings the orchestrator had formed before launch (fence set refuses house build lanes; samples cannot carry `--head`; fence FAILs would score against the model). Check: `_check_v04_review.py --head 4e882a5`. Sanity before launch: the five real v0.4.2 reports all PASS that check with `--head ''` — the panel's own gate is not a false-FAIL source today.
+
+- **GPT-5.5 high (codex, code-review):** PASS attempt 1, 7.5 min, 274k tokens. Five findings, all verified true; tightest report (14.5k chars); its Q1 fence rule became the spine of ruling 9 (fingerprint record fields). Could not run `git merge-tree --write-tree` — the Codex sandbox denies object-DB writes even for a read-only dry run; said so honestly.
+- **claude-sonnet-5 (claude engine, disposable pinned clones):** PASS attempt 1, 6.2 min. Deepest report (27k chars, 9 findings + a "Confirmed sound" section that verified the HUD traversal guards and E1). Wrote a read-only `probe_fence.py` that tokenised all 91 distinct real house checks — the evidence behind ruling 9. Two UNIQUE verified findings: the static plist lives in homer-workspace not homer-agents (A5); standalone `lint` exits 1 on any finding so "advisory" findings would break H2 (A6). Its `merge-tree` ran clean in the clone (writes allowed there). Clones remain the right call for this seat.
+- **Hy3 preview (opencode/OpenRouter, probation, code-review):** PASS attempt 1, 8.2 min, 75k tokens (~a quarter of GPT's). Ten findings, substance verified; found the open-folder handler stores no bound host (A7 element). Two small inaccuracies, neither load-bearing: said `--head` "has no default" (it defaults to `cdd154a`); re-raised the `models`-log claim with the wrong function name. First-try PASS on a 20k-char adversarial brief — on-theme, since this spec exists partly because Hy3's earlier rows were under-scored by format false-FAILs. Keep it as the third seat on spec panels; still probation on the scoreboard (55% first-try over 71) until the false rows stop dragging it.
+- **Orchestrator error on record:** the brief claimed two templates run pytest/unittest in their checks; false (the keywords sit in spec prose). Sonnet and Hy3 both refuted it with evidence. Lesson: when the brief asserts a fact about the code, grep the FIELD, not the file.
+- **Round 2 (verify, same day):** GPT-5.5 high PASS 3.2 min / 263k; Sonnet PASS 4.5 min; Hy3 gap-hunter PASS 3.2 min / 72k. All "Ready with small fixes", none endorsed loop-stop. **Sonnet and Hy3 independently found the round-1 miss:** `models` reads a derived SQLite index by default, not runs.jsonl — the `cause` field as folded would never have reached the real scoreboard (P1 on a Must). GPT missed that but caught the `/usr/bin/env` fence hole. Hy3's gap-hunter lane (omissions only) earned its seat: 3 findings, 2 folded as spec edits, 1 a BACKLOG rider; zero re-raises of A1–A10. Verify rounds are cheap here (~half the round-1 wall-clock) — always run them.
+- **Rounds 3 + 4 (same day):** round 3 verify (GPT 4.6 min / 166k; Sonnet 3.0 min) — both caught two defects in the ORCHESTRATOR's round-2 wording (redirect targets fenced by the new algorithm; first-try semantics vs `group_model_log_tasks`); Sonnet ran the algorithm text over 170 unique real checks. Round 4 scoped loop-stop (GPT 3.5 min / 93k: NO FINDINGS; Sonnet 1.3 min: two P3 clauses) — both `LOOP-STOP: yes`. **11 seat-runs, 11/11 PASS first-try across the whole Stage 2** — the `_check_v04_review.py` gate produced zero false FAILs on honest reports in four rounds. Pattern confirmed: review round → verify → verify → scoped loop-stop is the cheapest path to a stamp; each verify round cost about half the wall-clock of round 1 and the highest-severity miss (the read-model DB) surfaced only in a verify round.
