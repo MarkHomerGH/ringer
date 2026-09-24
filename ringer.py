@@ -1919,6 +1919,127 @@ CHECK_TIMEOUT_ADVISORY_RUNNERS = (
     "cargo test",
     "make test",
 )
+COMMAND_SEPARATORS = {"&&", "||", ";", "|", "&"}
+INTERPRETER_BASENAMES = {"sh", "bash", "zsh", "node"}
+ASSIGNMENT_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=.*")
+
+
+@dataclass(frozen=True)
+class CheckFenceAnalysis:
+    fenced: tuple[str, ...]
+    relative: tuple[str, ...]
+    tokenizer_failed: bool
+
+
+def analyze_check_fence(check: str) -> CheckFenceAnalysis:
+    text = strip_shell_comments(check)
+    lexer = shlex.shlex(text, posix=True, punctuation_chars=True)
+    lexer.whitespace_split = True
+    try:
+        tokens = list(lexer)
+    except ValueError:
+        return CheckFenceAnalysis((), (), True)
+
+    fenced: list[str] = []
+    relative: list[str] = []
+    earlier_absolute_cd = False
+    for command in split_simple_commands(remove_redirects(tokens)):
+        if not command:
+            continue
+        words = command_after_assignment_prefix(command)
+        if words and os.path.basename(words[0]) == "env":
+            words = words[1:]
+            while words and words[0].startswith("-"):
+                words = words[1:]
+        if not words:
+            continue
+        if words[0] == "cd":
+            if len(words) >= 2 and is_absolute_or_tilde(words[1]):
+                earlier_absolute_cd = True
+            continue
+        candidate = check_script_candidate(words)
+        if candidate is None or "{{" in candidate:
+            continue
+        if is_absolute_or_tilde(candidate):
+            fenced.append(os.path.expanduser(candidate))
+        elif not earlier_absolute_cd:
+            relative.append(candidate)
+    return CheckFenceAnalysis(tuple(fenced), tuple(relative), False)
+
+
+def remove_redirects(tokens: list[str]) -> list[str]:
+    result: list[str] = []
+    i = 0
+    while i < len(tokens):
+        redir_end = redirect_run_end(tokens, i)
+        if redir_end is not None:
+            if result and result[-1].isdigit():
+                result.pop()
+            i = redir_end
+            if i < len(tokens):
+                i += 1
+            continue
+        result.append(tokens[i])
+        i += 1
+    return result
+
+
+def redirect_run_end(tokens: list[str], start: int) -> int | None:
+    end = start
+    saw_redirect = False
+    while end < len(tokens) and tokens[end] and all(char in "><&" for char in tokens[end]):
+        if ">" in tokens[end] or "<" in tokens[end]:
+            saw_redirect = True
+        end += 1
+    if not saw_redirect:
+        return None
+    return end
+
+
+def split_simple_commands(tokens: list[str]) -> list[list[str]]:
+    commands: list[list[str]] = []
+    current: list[str] = []
+    for token in tokens:
+        if token in COMMAND_SEPARATORS:
+            commands.append(current)
+            current = []
+            continue
+        current.append(token)
+    commands.append(current)
+    return commands
+
+
+def command_after_assignment_prefix(tokens: list[str]) -> list[str]:
+    i = 0
+    while i < len(tokens) and ASSIGNMENT_RE.fullmatch(tokens[i]):
+        i += 1
+    return tokens[i:]
+
+
+def check_script_candidate(words: list[str]) -> str | None:
+    first = words[0]
+    if is_interpreter_word(first):
+        for word in words[1:]:
+            if word in {"-c", "-m"}:
+                return None
+            if word.startswith("-"):
+                continue
+            if word.startswith("--") and "=" in word:
+                continue
+            return word
+        return None
+    if is_absolute_or_tilde(first):
+        return first
+    return None
+
+
+def is_interpreter_word(word: str) -> bool:
+    basename = os.path.basename(word)
+    return basename in INTERPRETER_BASENAMES or basename.startswith("python")
+
+
+def is_absolute_or_tilde(path: str) -> bool:
+    return path.startswith("/") or path.startswith("~/")
 
 
 def lint_manifest(
@@ -1934,6 +2055,20 @@ def lint_manifest(
         findings.append("manifest: run_name model-scoreboard is reserved for the scoreboard page.")
 
     for task in manifest.tasks:
+        fence = analyze_check_fence(task.check)
+        for path in fence.fenced:
+            if not Path(path).is_file():
+                findings.append(f"ERROR: {task.key}: check script {path} not found")
+        for path in fence.relative:
+            findings.append(
+                f"advisory: {task.key}: check script {path} is relative — it resolves inside the worker's own folder, "
+                "which the worker can write to, so the fence cannot protect it; give the script an absolute path "
+                "or a prior `cd /abs`"
+            )
+        if fence.tokenizer_failed:
+            findings.append(
+                f"advisory: {task.key}: check could not be tokenised for the script fence; nothing is fenced"
+            )
         if check_cannot_fail(task.check):
             findings.append(f"{task.key}: check cannot fail, so the task cannot be verified.")
         if check_may_fail_silently(task.check):

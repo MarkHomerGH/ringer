@@ -164,6 +164,8 @@ lint: clean (1 tasks)
 
 A check that cannot fail is trusting the worker with extra steps.
 
+**check script:** Lint refuses a manifest when a check runs a script file that does not exist. The script is the first word after an interpreter (`sh`, `bash`, `zsh`, `node`, or `python*`), or a bare absolute first word; redirect targets, `cd`/`cp` operands, `--flag` values, `/dev/null`, interpreter binaries, data files, and `{placeholders}` are deliberately not fenced. A relative script path gets an advisory because it resolves inside the worker's own writable folder unless the check first does `cd /abs`.
+
 Lint prints an advisory when a check appears to run a test suite without `check_timeout_s`; advisory findings are printed but never change lint's exit code, and the trigger is a plain substring match on `pytest`, `unittest`, `npm test`, `npm run test`, `go test`, `cargo test`, or `make test`.
 
 ### Baseline: prove your checks before spending tokens
