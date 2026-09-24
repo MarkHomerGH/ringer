@@ -9429,7 +9429,7 @@ class RingerRunner:
                 "reasoning_effort": reasoning_effort,
                 "task_type": runtime.task.task_type,
                 "retry": retrying,
-                "cause": "check-timeout" if verify.check_timed_out else "worker-output",
+                "cause": "check-timeout" if verify.check_timed_out and not worker.timed_out and not worker.error else "worker-output",
             }
         )
 

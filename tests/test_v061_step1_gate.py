@@ -357,6 +357,13 @@ class EndToEndCauseTests(unittest.TestCase):
                     "full_access_args = []",
                     'token_regex = "tokens\\\\s+used\\\\s*:?\\\\s*([0-9][0-9,]*)"',
                     "",
+                    "[engines.hang]",
+                    'bin = "/bin/sh"',
+                    'args_template = ["-c", "sleep 30"]',
+                    "sandbox_args = []",
+                    "full_access_args = []",
+                    'token_regex = "tokens\\\\s+used\\\\s*:?\\\\s*([0-9][0-9,]*)"',
+                    "",
                 ]
             ),
             encoding="utf-8",
@@ -439,6 +446,19 @@ class EndToEndCauseTests(unittest.TestCase):
         for row in rows:
             self.assertEqual("worker-output", row.get("cause"), row)
 
+
+    def test_worker_timeout_then_check_timeout_stays_worker_output(self) -> None:
+        # Round-3 C1 (Sonnet), spec §19.11: when the WORKER failed (killed by timeout_s, or ERROR)
+        # a check that then also times out on the leftover tree must not hide the worker's failure.
+        proc = self.run_manifest(
+            "gate-worker-then-check-timeout",
+            task_obj(engine="hang", timeout_s=2, check="sleep 4; echo 'FAIL: not killed'; exit 1",
+                     check_timeout_s=1, max_attempts=1),
+        )
+        rows = self.rows()
+        self.assertEqual(1, len(rows), proc.stdout)
+        self.assertEqual("TIMEOUT", str(rows[0]["verdict"]).upper(), rows[0])
+        self.assertEqual("worker-output", rows[0].get("cause"), rows[0])
 
     def test_dry_run_prints_the_budget_only_when_set(self) -> None:
         with_budget = self.run_manifest(
