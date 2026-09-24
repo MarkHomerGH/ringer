@@ -129,6 +129,9 @@ class MidRunFenceTests(unittest.TestCase):
             "edit_script": f"printf '\\n# tampered\\n' >> {self.script}; printf done > out.txt",
             "delete_script": f"rm -f {self.script}; printf done > out.txt",
             "rewrite_patch": f"printf 'new patch body\\n' > {self.root}/lane.patch; printf done > out.txt",
+            "touch_script": f"sleep 1; touch {self.script}; printf done > out.txt",
+            "swap_link": f"cp {self.script} {self.root}/copy.sh; rm -f {self.root}/link.sh; ln -s {self.root}/copy.sh {self.root}/link.sh; printf done > out.txt",
+            "hang_and_edit": f"printf '\\n# tampered\\n' >> {self.script}; sleep 30",
         }
         lines = [
             f'state_dir = "{self.state_dir}"',
@@ -282,6 +285,43 @@ class MidRunFenceTests(unittest.TestCase):
         self.assertEqual([str(self.script)], [e["path"] for e in fences["lane"]], "only the script is fenced, never the --patch/output path")
         rows = self.rows()
         self.assertEqual(1, len(rows))
+        self.assertEqual("PASS", str(rows[0]["verdict"]).upper(), rows[0])
+        self.assertEqual("worker-output", rows[0].get("cause"))
+        self.assertNotIn("restart the run", proc.stdout)
+
+    # ---- round-1 panel folds (H1–H3) + gate hardenings ----
+    def test_h1_symlink_swapped_to_identical_content_is_a_change(self) -> None:
+        link = self.root / "link.sh"
+        link.symlink_to(self.script)
+        rows_before = self.rows()
+        self.run_manifest("gate-h1", [self.task("swap", "swap_link", f"sh {link}", max_attempts=2)])
+        rows = [r for r in self.rows() if r["task_key"] == "swap"]
+        self.assertEqual(1, len(rows), rows)
+        self.assertEqual("FAIL", str(rows[0]["verdict"]).upper(), rows[0])
+        self.assertEqual("fence-changed", rows[0].get("cause"), rows[0])
+        self.assertIn("check script changed since run start", str(rows[0].get("notes", "")), rows[0])
+
+    def test_h2_worker_failure_wins_over_a_tripped_fence_for_cause(self) -> None:
+        self.run_manifest("gate-h2", [self.task("hang", "hang_and_edit", f"sh {self.script}", timeout_s=2, max_attempts=2)])
+        rows = [r for r in self.rows() if r["task_key"] == "hang"]
+        self.assertEqual(1, len(rows), "a tripped fence still ends the task — no attempt 2")
+        self.assertEqual("TIMEOUT", str(rows[0]["verdict"]).upper(), rows[0])
+        self.assertEqual("worker-output", rows[0].get("cause"), "the worker's own failure is the model's — never hidden behind the fence")
+        self.assertEqual("check-not-executed", rows[0].get("verify_method"), rows[0])
+        self.assertIn("restart the run", str(rows[0].get("notes", "")), rows[0])
+
+    def test_h3_dev_paths_are_never_fenced(self) -> None:
+        proc = self.run_manifest("gate-h3", [self.task("devnull", "write_done", "sh /dev/null && grep done out.txt", max_attempts=1)])
+        self.assertEqual(0, proc.returncode, proc.stdout)
+        self.assertEqual([], self.state()["check_fences"]["devnull"])
+        rows = self.rows()
+        self.assertEqual("PASS", str(rows[0]["verdict"]).upper(), rows[0])
+        self.assertEqual("worker-output", rows[0].get("cause"))
+
+    def test_mtime_only_touch_does_not_trip_the_fence(self) -> None:
+        proc = self.run_manifest("gate-touch", [self.task("touch", "touch_script", f"sh {self.script}", max_attempts=1)])
+        self.assertEqual(0, proc.returncode, proc.stdout)
+        rows = self.rows()
         self.assertEqual("PASS", str(rows[0]["verdict"]).upper(), rows[0])
         self.assertEqual("worker-output", rows[0].get("cause"))
         self.assertNotIn("restart the run", proc.stdout)

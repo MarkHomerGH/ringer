@@ -9242,7 +9242,7 @@ class Verifier:
                     ),
                     terminal=True,
                 )
-            if current.sha256 != recorded.sha256:
+            if current.sha256 != recorded.sha256 or current.resolved != recorded.resolved:
                 return VerifyResult(
                     ok=False,
                     check_returncode=None,
@@ -9404,7 +9404,7 @@ class RingerRunner:
         paths_by_task: dict[str, tuple[str, ...]] = {}
         fingerprints_by_task: dict[str, tuple[CheckScriptFingerprint | None, ...]] = {}
         for task in self.manifest.tasks:
-            paths = analyze_check_fence(task.check).fenced
+            paths = tuple(path for path in analyze_check_fence(task.check).fenced if not is_dev_path(path))
             paths_by_task[task.key] = paths
             fingerprints_by_task[task.key] = tuple(fingerprint_check_script(path) for path in paths)
         return paths_by_task, fingerprints_by_task
@@ -9852,7 +9852,7 @@ class RingerRunner:
         notes_parts.append("raw_check_output_first_2000_chars:")
         notes_parts.append(verify.raw_output_excerpt)
         cause = verify_failure_cause(verify, worker)
-        verify_method = "check-not-executed" if cause in {"fence-changed", "fence-missing"} else VERIFY_METHOD
+        verify_method = "check-not-executed" if verify_is_fence_failure(verify) else VERIFY_METHOD
         with contextlib.suppress(Exception):
             self._write_steering_observation(
                 runtime,
@@ -10017,14 +10017,24 @@ def verdict_for(worker: WorkerResult, verify: VerifyResult) -> str:
 
 
 def verify_failure_cause(verify: VerifyResult, worker: WorkerResult) -> str:
-    if verify.terminal:
+    if worker.timed_out or worker.error:
+        return "worker-output"
+    if verify.check_timed_out:
+        return "check-timeout"
+    if verify_is_fence_failure(verify):
         if verify.raw_output_excerpt.startswith("[ringer.py] check script changed since run start: "):
             return "fence-changed"
-        if verify.raw_output_excerpt.startswith("[ringer.py] check script missing at check time: "):
-            return "fence-missing"
-    if verify.check_timed_out and not worker.timed_out and not worker.error:
-        return "check-timeout"
+        return "fence-missing"
     return "worker-output"
+
+
+def verify_is_fence_failure(verify: VerifyResult) -> bool:
+    if verify.terminal:
+        if verify.raw_output_excerpt.startswith("[ringer.py] check script changed since run start: "):
+            return True
+        if verify.raw_output_excerpt.startswith("[ringer.py] check script missing at check time: "):
+            return True
+    return False
 
 
 def build_run_id(run_name: str) -> str:
