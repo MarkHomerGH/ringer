@@ -1923,11 +1923,12 @@ COMMAND_SEPARATORS = {"&&", "||", ";", "|", "&", "(", ")", "{", "}"}
 LEADING_RESERVED_WORDS = {"if", "then", "else", "elif", "while", "until", "do", "time", "!"}
 CLOSING_RESERVED_WORDS = {"fi", "done", "esac"}
 INTERPRETER_BASENAMES = {"sh", "bash", "zsh", "node"}
-SOURCE_LIKE_BASENAMES = {"source", ".", "exec"}
+SOURCE_LIKE_BASENAMES = {"source", "."}
 SHELL_VALUE_OPTIONS = {"-o", "-O", "--rcfile", "--init-file"}
 PYTHON_VALUE_OPTIONS = {"-W", "-X", "-Q"}
 NODE_VALUE_OPTIONS = {"-r", "--require"}
 NODE_INLINE_OPTIONS = {"-e", "--eval", "-p", "--print"}
+ENV_OPERAND_OPTIONS = {"-u", "--unset", "-C", "--chdir"}
 ASSIGNMENT_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=.*")
 
 
@@ -1937,6 +1938,12 @@ class CheckFenceAnalysis:
     relative: tuple[str, ...]
     tokenizer_failed: bool
     unresolved: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class NormalizedCommandHead:
+    words: list[str]
+    earlier_absolute_cd: bool = False
 
 
 def analyze_check_fence(check: str) -> CheckFenceAnalysis:
@@ -1952,10 +1959,13 @@ def analyze_check_fence(check: str) -> CheckFenceAnalysis:
     relative: list[str] = []
     unresolved: list[str] = []
     earlier_absolute_cd = False
-    for command in split_simple_commands(remove_redirects(tokens)):
+    for command in split_simple_commands(remove_redirects(truncate_at_heredoc(tokens))):
         if not command:
             continue
-        words = normalize_simple_command_head(command)
+        head = normalize_simple_command_head_info(command)
+        if head.earlier_absolute_cd:
+            earlier_absolute_cd = True
+        words = head.words
         if not words:
             continue
         if words[0] == "cd":
@@ -1965,10 +1975,10 @@ def analyze_check_fence(check: str) -> CheckFenceAnalysis:
         candidate = check_script_candidate(words)
         if candidate is None or "{{" in candidate:
             continue
-        if is_absolute_or_tilde(candidate):
-            fenced.append(os.path.expanduser(candidate))
-        elif is_unresolved_path(candidate):
+        if is_unresolved_path(candidate):
             unresolved.append(candidate)
+        elif is_absolute_or_tilde(candidate):
+            fenced.append(os.path.expanduser(candidate))
         elif not earlier_absolute_cd:
             relative.append(candidate)
     return CheckFenceAnalysis(tuple(dict.fromkeys(fenced)), tuple(relative), False, tuple(unresolved))
@@ -2020,10 +2030,17 @@ def remove_redirects(tokens: list[str]) -> list[str]:
     return result
 
 
+def truncate_at_heredoc(tokens: list[str]) -> list[str]:
+    for i, token in enumerate(tokens):
+        if token in {"<<", "<<-"}:
+            return tokens[:i]
+    return tokens
+
+
 def redirect_run_end(tokens: list[str], start: int) -> int | None:
     end = start
     saw_redirect = False
-    while end < len(tokens) and tokens[end] and all(char in "><&" for char in tokens[end]):
+    while end < len(tokens) and tokens[end] and all(char in "><&|" for char in tokens[end]):
         if ">" in tokens[end] or "<" in tokens[end]:
             saw_redirect = True
         end += 1
@@ -2035,12 +2052,30 @@ def redirect_run_end(tokens: list[str], start: int) -> int | None:
 def split_simple_commands(tokens: list[str]) -> list[list[str]]:
     commands: list[list[str]] = []
     current: list[str] = []
-    for token in tokens:
+    command_substitution_depth = 0
+    i = 0
+    while i < len(tokens):
+        token = tokens[i]
+        if token == "$" and i + 1 < len(tokens) and tokens[i + 1] == "(":
+            current.extend([token, tokens[i + 1]])
+            command_substitution_depth = 1
+            i += 2
+            continue
+        if command_substitution_depth:
+            current.append(token)
+            if token == "(":
+                command_substitution_depth += 1
+            elif token == ")":
+                command_substitution_depth -= 1
+            i += 1
+            continue
         if is_command_separator(token) or token in CLOSING_RESERVED_WORDS:
             commands.append(current)
             current = []
+            i += 1
             continue
         current.append(token)
+        i += 1
     commands.append(current)
     return commands
 
@@ -2052,20 +2087,55 @@ def is_command_separator(token: str) -> bool:
 
 
 def normalize_simple_command_head(tokens: list[str]) -> list[str]:
+    return normalize_simple_command_head_info(tokens).words
+
+
+def normalize_simple_command_head_info(tokens: list[str]) -> NormalizedCommandHead:
     words = list(tokens)
+    earlier_absolute_cd = False
     while True:
         original = words
         while words and words[0] in LEADING_RESERVED_WORDS:
             words = words[1:]
         words = command_after_assignment_prefix(words)
-        if words and os.path.basename(words[0]) == "env":
+        if words and os.path.basename(words[0]) == "exec":
             words = words[1:]
-            while words and words[0].startswith("-"):
-                words = words[1:]
-            words = command_after_assignment_prefix(words)
+            continue
+        if words and os.path.basename(words[0]) == "env":
+            env_result = command_after_env_prefix(words)
+            words = env_result.words
+            earlier_absolute_cd = earlier_absolute_cd or env_result.earlier_absolute_cd
             continue
         if words == original:
-            return words
+            return NormalizedCommandHead(words, earlier_absolute_cd)
+
+
+def command_after_env_prefix(tokens: list[str]) -> NormalizedCommandHead:
+    words = tokens[1:]
+    earlier_absolute_cd = False
+    while words:
+        word = words[0]
+        if ASSIGNMENT_RE.fullmatch(word):
+            words = words[1:]
+            continue
+        if word in ENV_OPERAND_OPTIONS:
+            if word in {"-C", "--chdir"} and len(words) >= 2 and is_absolute_or_tilde(words[1]):
+                earlier_absolute_cd = True
+            words = words[2:] if len(words) >= 2 else []
+            continue
+        if word.startswith("--unset="):
+            words = words[1:]
+            continue
+        if word.startswith("--chdir="):
+            if is_absolute_or_tilde(word.split("=", 1)[1]):
+                earlier_absolute_cd = True
+            words = words[1:]
+            continue
+        if word.startswith("-"):
+            words = words[1:]
+            continue
+        break
+    return NormalizedCommandHead(command_after_assignment_prefix(words), earlier_absolute_cd)
 
 
 def command_after_assignment_prefix(tokens: list[str]) -> list[str]:
@@ -2132,7 +2202,7 @@ def is_absolute_or_tilde(path: str) -> bool:
 
 
 def is_unresolved_path(path: str) -> bool:
-    return path.startswith("$") or bool(re.match(r"^~[A-Za-z0-9_][^/]*(?:/|$)", path))
+    return any(char in path for char in "$*?[`") or bool(re.match(r"^~[A-Za-z0-9_][^/]*(?:/|$)", path))
 
 
 def is_dev_path(path: str) -> bool:

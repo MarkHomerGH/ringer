@@ -208,6 +208,37 @@ class CandidateAlgorithmTests(unittest.TestCase):
     def test_e7_fenced_paths_are_deduplicated(self) -> None:
         self.assertEqual((["/abs/a.sh"], [], False), self.fence("bash /abs/a.sh && bash /abs/a.sh"))
 
+    # ---- round-2 panel folds (F1–F5) ----
+    def test_f1_noclobber_redirect_target_is_not_fenced(self) -> None:
+        self.assertEqual((["/abs/a.sh"], [], False), self.fence("bash /abs/a.sh >|/abs/out.log"))
+        self.assertEqual((["/abs/a.sh"], [], False), self.fence("bash /abs/a.sh >| /abs/out.log 2>&1"))
+
+    def test_f2_env_operand_options_are_skipped(self) -> None:
+        self.assertEqual((["/abs/missing.py"], [], False), self.fence("env -u FOO python3 /abs/missing.py"))
+        self.assertEqual((["/abs/a.sh"], [], False), self.fence("env --unset=FOO bash /abs/a.sh"))
+        self.assertEqual((["/abs/a.sh"], [], False), self.fence("env -C /tmp bash /abs/a.sh"))
+        self.assertEqual((["/abs/a.sh"], [], False), self.fence("env --chdir /tmp bash /abs/a.sh"))
+        self.assertEqual(([], [], False), self.fence("env -C /abs/repo bash scripts/gate.sh"), "env -C /abs counts as an earlier absolute cd")
+
+    def test_f3_shell_built_paths_are_unresolved_not_fenced(self) -> None:
+        for check in ("bash /abs/$RUN/x.sh", "bash /a/*.sh", "bash $(pwd)/a.sh", "bash `echo /abs/b.sh`", "python3 /abs/x[1].py", "bash /abs/?.sh"):
+            with self.subTest(check=check):
+                fenced, rel, failed = self.fence(check)
+                self.assertEqual([], fenced, "a path the shell still has to build is never looked up literally")
+                self.assertEqual([], rel)
+                self.assertFalse(failed)
+                self.assertTrue(analyze_check_fence(check).unresolved, "it is reported as unresolved")
+
+    def test_f4_exec_is_a_wrapper(self) -> None:
+        self.assertEqual((["/abs/a.sh"], [], False), self.fence("exec bash /abs/a.sh"))
+        self.assertEqual((["/abs/a.py"], [], False), self.fence("exec python3 /abs/a.py"))
+        self.assertEqual((["/abs/run.sh"], [], False), self.fence("exec /abs/run.sh --now"))
+        self.assertEqual((["/abs/a.sh"], [], False), self.fence("exec env FOO=1 bash /abs/a.sh"))
+
+    def test_f5_heredoc_bodies_are_not_commands(self) -> None:
+        self.assertEqual(([], [], False), self.fence("cat <<EOF > /abs/f\nbash /abs/x.sh\nEOF"))
+        self.assertEqual((["/abs/first.sh"], [], False), self.fence("bash /abs/first.sh && cat <<'EOF'\n/abs/not-a-script\nEOF"))
+
     def test_comments_are_stripped_before_tokenising(self) -> None:
         self.assertEqual((["/abs/x.sh"], [], False), self.fence("bash /abs/x.sh  # bash /abs/commented.sh"))
 
@@ -290,6 +321,16 @@ class LintFenceTests(unittest.TestCase):
         missing = self.root / "missing.py"
         findings = lint_manifest(manifest_for(task_obj(f"env FOO=1 python3 {missing}")))
         self.assertEqual([f"ERROR: alpha: check script {missing} not found"], errors(findings), findings)
+
+    def test_f3_shell_built_path_gets_unresolved_advisory_not_error(self) -> None:
+        findings = lint_manifest(manifest_for(task_obj("bash /abs/$RUN/x.sh")))
+        self.assertEqual([], errors(findings), findings)
+        self.assertEqual(1, len(advisories(findings)), findings)
+        self.assertIn("not fenced", advisories(findings)[0])
+
+    def test_f1_noclobber_target_is_never_missing(self) -> None:
+        findings = lint_manifest(manifest_for(task_obj(f"bash {self.script} >|{self.root}/not-yet.log")))
+        self.assertEqual([], errors(findings), findings)
 
     def test_templates_still_lint_clean(self) -> None:
         for path in sorted((ROOT / "templates").glob("*/manifest*.json")):
