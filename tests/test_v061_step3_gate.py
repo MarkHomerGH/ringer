@@ -132,6 +132,8 @@ class MidRunFenceTests(unittest.TestCase):
             "touch_script": f"sleep 1; touch {self.script}; printf done > out.txt",
             "swap_link": f"cp {self.script} {self.root}/copy.sh; rm -f {self.root}/link.sh; ln -s {self.root}/copy.sh {self.root}/link.sh; printf done > out.txt",
             "hang_and_edit": f"printf '\\n# tampered\\n' >> {self.script}; sleep 30",
+            "edit_second": f"printf '\\n# tampered\\n' >> {self.root}/second.sh; printf done > out.txt",
+            "fail_then_edit": f"if [ -f {self.root}/seen ]; then printf '\\n# tampered\\n' >> {self.script}; fi; touch {self.root}/seen; printf nope > out.txt",
         }
         lines = [
             f'state_dir = "{self.state_dir}"',
@@ -325,6 +327,26 @@ class MidRunFenceTests(unittest.TestCase):
         self.assertEqual("PASS", str(rows[0]["verdict"]).upper(), rows[0])
         self.assertEqual("worker-output", rows[0].get("cause"))
         self.assertNotIn("restart the run", proc.stdout)
+
+    # ---- post-loop gate audit (round 2: Hy3 row-auditor B1, Sonnet B2) ----
+    def test_second_of_two_fenced_scripts_is_named_when_it_changes(self) -> None:
+        second = self.root / "second.sh"
+        second.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        self.run_manifest("gate-two", [self.task("two", "edit_second", f"sh {self.script} && sh {second}", max_attempts=2)])
+        rows = [r for r in self.rows() if r["task_key"] == "two"]
+        self.assertEqual(1, len(rows), rows)
+        self.assertEqual("fence-changed", rows[0].get("cause"), rows[0])
+        self.assertIn(f"check script changed since run start: {second} ", str(rows[0].get("notes", "")), rows[0])
+        self.assertEqual([str(self.script), str(second)], [e["path"] for e in self.state()["check_fences"]["two"]])
+
+    def test_tamper_on_attempt_two_after_a_real_attempt_one_fail(self) -> None:
+        self.run_manifest("gate-a2", [self.task("late", "fail_then_edit", f"sh {self.script}", max_attempts=3)])
+        rows = [r for r in self.rows() if r["task_key"] == "late"]
+        self.assertEqual(2, len(rows), "attempt 1 is an honest FAIL, attempt 2 trips the fence, attempt 3 never runs")
+        self.assertEqual("worker-output", rows[0].get("cause"), rows[0])
+        self.assertEqual("executed-check", rows[0].get("verify_method"), rows[0])
+        self.assertEqual("fence-changed", rows[1].get("cause"), rows[1])
+        self.assertEqual("check-not-executed", rows[1].get("verify_method"), rows[1])
 
     def test_untouched_script_across_retry_is_unaffected(self) -> None:
         failing = self.root / "failing.sh"
