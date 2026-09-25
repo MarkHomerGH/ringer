@@ -11,9 +11,14 @@ import sys
 
 REQUIRED_LABELS = ["Finding", "Evidence", "Impact", "Fix", "Priority", "Confidence"]
 LABEL_RE = re.compile(
-    r"(?im)^[ \t]*(?:#{1,6}[ \t]*)?(?:[-*+][ \t]*)?(?:\*\*)?"
+    r"(?im)^[ \t]*(?:#{1,6}[ \t]*)?(?:(?:[-*+])|(?:\d+[.)]))?[ \t]*(?:\*\*)?"
     r"(Finding|Evidence|Impact|Fix|Priority|Confidence)(?:\*\*)?[ \t]*:[ \t]*(?:\*\*)?(.*)$"
 )
+FENCE_RE = re.compile(r"(?ms)^[ \t]*(```|~~~)[^\n]*\n.*?^[ \t]*\1[^\n]*(?:\n|$)")
+
+
+def strip_fenced_code_blocks(text: str) -> str:
+    return FENCE_RE.sub("", text)
 
 
 def finding_blocks(region: str) -> list[str]:
@@ -72,6 +77,7 @@ def main() -> int:
                 stop_at = stop.start()
                 break
         findings_region = tail[:stop_at]
+    findings_region = strip_fenced_code_blocks(findings_region)
     blocks = finding_blocks(findings_region)
     finding_count = len(blocks)
     no_findings = bool(re.search(r"(?i)\bNO FINDINGS\b", findings_region))
@@ -85,6 +91,8 @@ def main() -> int:
         for label in REQUIRED_LABELS:
             if label not in labels:
                 fails.append(f"finding {index}: missing {label}: label")
+            elif not labels[label].strip():
+                fails.append(f"finding {index}: {label}: value is empty")
         if not re.match(r"P[0-3]\b", labels.get("Priority", "")):
             fails.append(f"finding {index}: Priority must be P0, P1, P2, or P3")
         if not re.match(r"(high|medium|low)\b", labels.get("Confidence", ""), re.IGNORECASE):

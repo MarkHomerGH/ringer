@@ -8,14 +8,21 @@ Contract pinned here (boss rulings for this step):
   * `CheckSample` frozen dataclass: files (tuple of (name-inside-task-folder, sample-path) pairs in
     manifest order), expect ("pass" | "fail"), note = "", args = "", fail_contains = "";
     property `label` = note if set, else the first file NAME. `TaskSpec.check_samples: tuple[CheckSample, ...] = ()`.
-  * Parse (ValueError naming the task): check_samples must be a list of objects; files a non-empty
-    object of str -> str whose names are relative and contain no ".." segment; expect exactly
-    "pass" or "fail"; note/args/fail_contains strings; fail_contains on a pass sample is an error;
-    samples on a task with no check are an error (the existing "check is required" rule).
+  * Parse (ValueError naming the task): check_samples must be a list of objects whose keys are only
+    files / expect / note / args / fail_contains (an unknown key is an error naming that key); files a
+    non-empty object of str -> str whose names are relative, non-empty, not "." , contain no ".."
+    segment or NUL, and do not collide once normalised (two names for one target, or a name that is
+    a parent folder of another — panel round 1 A2); expect a string that is exactly "pass" or "fail";
+    note/args/fail_contains strings; fail_contains on a pass sample is an error; samples on a task
+    with no check are an error (the existing "check is required" rule).
   * `check_has_control_token(check) -> bool`: True when the §4.2 token list (shlex, punctuation_chars)
-    contains a shell control token — && || ; | & { or any redirect token containing > or < — so an
-    operator INSIDE a quoted argument is not a control token. `effective_sample_command(check, args)`
-    = check + " " + args when args is non-empty, else check (no other transformation).
+    contains a shell control token — any UNQUOTED token made only of the characters & | ; ( ) < >
+    (so && || ; | & |& ( ) and every redirect form count, and a `( … )` subshell or `$( … )` counts —
+    round 1 A1) or a standalone { or } — and an operator INSIDE quotes (`'&&'`, `--sep '>'`,
+    `--verify-command 'a && b'`) is NOT a control token because the quotes are honoured (round 1
+    Sonnet A2: tokenise so that quoted text keeps its quotes, e.g. shlex posix=False). A tokeniser
+    error counts as chained. `effective_sample_command(check, args)` = check + " " + args when args
+    is non-empty, else check (no other transformation).
   * `check_samples_skipped(task) -> bool`: True when "{{" occurs in the check, any sample path, any
     args or any note — then NO sample is executed and no sample finding is emitted, before any other
     sample rule (placeholder manifests lint exactly as today: X3).
@@ -39,6 +46,9 @@ Contract pinned here (boss rulings for this step):
   * Other ERROR findings (nothing executed for that sample):
         "ERROR: <key>: sample <label>: sample cannot take args on a chained check"   (args + control token)
         "ERROR: <key>: sample <label>: sample file <path> not found"
+        "ERROR: <key>: sample <label>: sample file <path> could not be copied: <reason>"  (copy OSError —
+        the folder is still removed; round 1 Sonnet A1)
+    Precedence per sample: placeholder skip (whole task) → args-on-chained → file missing → copy.
   * `run` refuses on any ERROR before any worker is spawned (no run state, no model-log row).
   * Run-time behaviour of a task is unchanged by its samples. `run --dry-run`'s plan prints nothing
     new for samples (the progress lines are the trace).
@@ -46,8 +56,9 @@ Contract pinned here (boss rulings for this step):
     manifest's reviewer tasks carry check_samples over "{{KIT_DIR}}/checks/samples/<file>" with
     fail_contains on every fail sample; templates still lint clean; the pack resolved to a real
     path lints with zero ERROR findings — which requires check_review_report.py to accept
-    heading/bold/bulleted label decoration while still failing the three fail samples for their
-    stated reasons.
+    heading/bold/bulleted/numbered-list label decoration while still failing the three fail samples
+    for their stated reasons; a Finding: block inside a ``` fenced code block is not a finding, and
+    every required label needs a non-empty value (round 1 GPT A3 / Sonnet A6).
 """
 from __future__ import annotations
 
@@ -191,6 +202,14 @@ class ParseTests(unittest.TestCase):
             ({"check_samples": [{"files": {"report.md": "/tmp/a.md"}, "expect": "pass", "note": []}]}, "note"),
             ({"check_samples": [{"files": {"report.md": "/tmp/a.md"}, "expect": "fail", "fail_contains": 1}]}, "fail_contains"),
             ({"check_samples": [{"files": {"report.md": "/tmp/a.md"}, "expect": "pass", "fail_contains": "x"}]}, "fail_contains"),
+            # round 1 folds: A2 (both seats) name holes; Sonnet A1 unhashable expect; Sonnet A3 unknown keys
+            ({"check_samples": [{"files": {"": "/tmp/a.md"}, "expect": "pass"}]}, "files"),
+            ({"check_samples": [{"files": {".": "/tmp/a.md"}, "expect": "pass"}]}, "files"),
+            ({"check_samples": [{"files": {"a": "/tmp/a.md", "a/b": "/tmp/b.md"}, "expect": "pass"}]}, "files"),
+            ({"check_samples": [{"files": {"report.md": "/tmp/a.md", "./report.md": "/tmp/b.md"}, "expect": "pass"}]}, "files"),
+            ({"check_samples": [{"files": {"re\x00port.md": "/tmp/a.md"}, "expect": "pass"}]}, "files"),
+            ({"check_samples": [{"files": {"report.md": "/tmp/a.md"}, "expect": ["pass"]}]}, "expect"),
+            ({"check_samples": [{"files": {"report.md": "/tmp/a.md"}, "expect": "fail", "failcontains": "x"}]}, "failcontains"),
         ]
         for overrides, word in bad:
             with self.subTest(overrides=overrides):
@@ -211,6 +230,8 @@ class HelperTests(unittest.TestCase):
         chained = [
             "a && b", "a || b", "a; b", "a | b", "a & b", "a > out.txt", "a >> out.txt", "a 2>&1",
             "a < in.txt", "a || { echo no; exit 1; }", "test -f x && grep ok x",
+            # round 1 A1 (GPT P1 / Sonnet A2): grouping and the pipe-both operator
+            "( python3 /abs/check.py )", "(python3 /abs/check.py)", "a |& b", "$(python3 /abs/check.py)",
         ]
         for check in chained:
             with self.subTest(check=check):
@@ -220,6 +241,9 @@ class HelperTests(unittest.TestCase):
             "python3 /abs/check.py --verify-command 'pytest -q && echo ok'",
             'python3 /abs/check.py --pattern "a|b"',
             "python3 /abs/check.py --note 'x > y'",
+            # round 1 Sonnet A2: a quoted BARE operator is still quoted text
+            "python3 /abs/check.py '&&'", "grep -c '|' report.md", "python3 /abs/check.py --sep '>'",
+            'python3 /abs/check.py ";"', "find . -name x.md -exec cat '{}' ';'",
         ]
         for check in plain:
             with self.subTest(check=check):
@@ -267,7 +291,7 @@ class LintSampleTests(TempDirMixin, unittest.TestCase):
         self.head_check = self.write(self.root, "head_check.py", (
             "import argparse, pathlib, sys\n"
             "p = argparse.ArgumentParser(); p.add_argument('--file', default='report.md'); p.add_argument('--head', default='')\n"
-            "a = p.parse_args(); text = pathlib.Path(a.file).read_text()\n"
+            "a = p.parse_known_args()[0]; text = pathlib.Path(a.file).read_text()\n"
             "if a.head and a.head not in text:\n"
             "    print(f'FAIL: report never names the reviewed HEAD {a.head!r}'); sys.exit(1)\n"
             "print('PASS'); sys.exit(0)\n"
@@ -337,7 +361,7 @@ class LintSampleTests(TempDirMixin, unittest.TestCase):
 
     def test_a_crashing_check_does_not_satisfy_a_fail_sample_with_fail_contains(self) -> None:
         # exit 127 (command not found) is a non-zero exit — fail_contains is what keeps it honest.
-        findings, _ = self.lint([task_obj("t", "/no/such/binary --file report.md", check_samples=[
+        findings, _ = self.lint([task_obj("t", "sh -c 'echo nosuch: command not found; exit 127'", check_samples=[
             {"files": {"report.md": str(self.bad)}, "expect": "fail", "fail_contains": "missing Summary"},
         ])])
         errs = self.errors(findings)
@@ -434,6 +458,72 @@ class LintSampleTests(TempDirMixin, unittest.TestCase):
                 self.assertEqual(1, len(errs), findings)
                 self.assertEqual(f"ERROR: t: sample hang: expected {expect}, got timeout (after 1s)", errs[0].splitlines()[0])
                 self.assert_no_sample_folders_left()
+
+    # ---- round-1 panel folds and gate blind spots (Sonnet A4/A5) ----
+    def test_placeholder_in_one_samples_note_skips_every_sample_of_the_task(self) -> None:
+        marker = self.root / "ran.marker"
+        findings, out = self.lint([task_obj("t", f"python3 {self.check} && touch {marker}", check_samples=[
+            {"files": {"report.md": str(self.good)}, "expect": "pass", "note": "plain"},
+            {"files": {"report.md": str(self.good)}, "expect": "pass", "note": "{{LATER}}"},
+        ])])
+        self.assertEqual([], [f for f in findings if "sample" in f], findings)
+        self.assertNotIn("lint: sample", out)
+        self.assertFalse(marker.exists(), "a placeholder anywhere in the task's samples skips ALL of them")
+
+    def test_precedence_args_on_chained_beats_missing_file(self) -> None:
+        missing = self.root / "nope.md"
+        findings, _ = self.lint([task_obj("t", f"python3 {self.check} && true", check_samples=[
+            {"files": {"report.md": str(missing)}, "expect": "pass", "args": "--head x", "note": "both"},
+        ])])
+        self.assertEqual(["ERROR: t: sample both: sample cannot take args on a chained check"], self.errors(findings), findings)
+
+    def test_subshell_check_refuses_args_but_runs_without_them(self) -> None:
+        findings, _ = self.lint([task_obj("t", f"( python3 {self.check} )", check_samples=[
+            {"files": {"report.md": str(self.good)}, "expect": "pass", "args": "--head x", "note": "grouped"},
+        ])])
+        self.assertEqual(["ERROR: t: sample grouped: sample cannot take args on a chained check"], self.errors(findings), findings)
+        findings, _ = self.lint([task_obj("t", f"( python3 {self.check} )", check_samples=[
+            {"files": {"report.md": str(self.good)}, "expect": "pass"},
+        ])])
+        self.assertEqual([], self.errors(findings), findings)
+
+    def test_quoted_operator_check_takes_args(self) -> None:
+        check = f"python3 {self.head_check} --file report.md --note '&&'"
+        findings, out = self.lint([task_obj("t", check, check_samples=[
+            {"files": {"report.md": str(self.report_with_head)}, "expect": "pass", "args": "--head eb8eccd"},
+        ])])
+        self.assertEqual([], self.errors(findings), findings)
+        self.assertIn(f"lint: sample t/report.md: {check} --head eb8eccd\n", out)
+
+    def test_exit_127_without_fail_contains_satisfies_a_fail_sample(self) -> None:
+        findings, _ = self.lint([task_obj("t", "sh -c 'echo nosuch: command not found; exit 127'", check_samples=[
+            {"files": {"report.md": str(self.bad)}, "expect": "fail"},
+        ])])
+        self.assertEqual([], self.errors(findings), "without fail_contains, fail means any non-zero exit (pinned)")
+
+    def test_unreadable_sample_file_is_a_copy_error_and_the_folder_is_removed(self) -> None:
+        locked = self.write(self.root, "locked.md", "## Summary\nx\n")
+        locked.chmod(0o000)
+        self.addCleanup(lambda: locked.chmod(0o644))
+        findings, out = self.lint([task_obj("t", f"python3 {self.check}", check_samples=[
+            {"files": {"report.md": str(locked)}, "expect": "pass", "note": "locked"},
+        ])])
+        errs = self.errors(findings)
+        self.assertEqual(1, len(errs), findings)
+        self.assertTrue(errs[0].startswith(f"ERROR: t: sample locked: sample file {locked} could not be copied: "), errs[0])
+        self.assert_no_sample_folders_left()
+
+    def test_timeout_finding_carries_the_progress_line_first_and_the_timed_out_excerpt(self) -> None:
+        check = "sh -c 'echo starting; sleep 20'"
+        findings, out = self.lint([task_obj("t", check, check_timeout_s=1, check_samples=[
+            {"files": {"report.md": str(self.good)}, "expect": "pass", "note": "hang"},
+        ])])
+        errs = self.errors(findings)
+        self.assertEqual(1, len(errs), findings)
+        self.assertIn(f"lint: sample t/hang: {check}\n", out, "the progress line is printed before execution, even for a sample that never returns")
+        self.assertIn("starting", errs[0], "output produced before the timeout is in the excerpt")
+        self.assertIn("[ringer.py] check timed out after 1s", errs[0])
+        self.assert_no_sample_folders_left()
 
     def test_sample_folder_is_removed_when_the_check_leaves_files_behind(self) -> None:
         check = "sh -c 'mkdir -p deep/er && echo x > deep/er/file && exit 0'"
@@ -596,6 +686,39 @@ class SamplePackTests(TempDirMixin, unittest.TestCase):
                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=60, check=False)
         self.assertNotEqual(0, proc.returncode, proc.stdout)
         self.assertIn("priority", proc.stdout.lower())
+
+    def check_text(self, text: str) -> subprocess.CompletedProcess[str]:
+        root = self.make_root()
+        (root / "report.md").write_text(text, encoding="utf-8")
+        return subprocess.run([sys.executable, str(TEMPLATE_CHECK), "--file", "report.md"], cwd=root, text=True,
+                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=60, check=False)
+
+    # ---- round-1 folds: GPT A3 / Sonnet A6 — leniency must not become blindness ----
+    def test_a_finding_block_inside_a_fenced_code_block_is_not_a_finding(self) -> None:
+        proc = self.check_text(
+            "## Summary\n\nI checked the cache diff and the tests.\n\n## Findings\n\n```markdown\nFinding: example only\n"
+            "Evidence: this is what a finding block looks like in this template\nImpact: none\nFix: none\n"
+            "Priority: P1\nConfidence: high\n```\n"
+        )
+        self.assertNotEqual(0, proc.returncode, proc.stdout)
+        self.assertIn("no findings or at least one finding", proc.stdout.lower())
+
+    def test_an_empty_label_value_fails_naming_the_label(self) -> None:
+        text = (SAMPLES_DIR / "pass-bold-labels.md").read_text(encoding="utf-8").replace(
+            "**Impact:** a burst of evictions on a hot key can drop its last write", "**Impact:**")
+        proc = self.check_text(text)
+        self.assertNotEqual(0, proc.returncode, proc.stdout)
+        self.assertIn("impact", proc.stdout.lower())
+
+    def test_numbered_list_decoration_passes(self) -> None:
+        proc = self.check_text(
+            "## Summary\n\nReviewed the widget-cache diff; one ordering defect in the eviction path, listed below.\n\n"
+            "## Findings\n\n1. **Finding:** eviction runs before the write-back completes\n"
+            "2. **Evidence:** cache.py:88 — `del self._entries[key]` executes before `flush()` returns\n"
+            "3. **Impact:** a burst of evictions on a hot key can drop its last write\n"
+            "4. **Fix:** call flush() first, then delete the entry\n5. **Priority:** P1\n6. **Confidence:** high\n"
+        )
+        self.assertEqual(0, proc.returncode, proc.stdout)
 
     def template_manifest_obj(self) -> dict[str, object]:
         return json.loads((KIT_DIR / "manifest.json").read_text(encoding="utf-8"))

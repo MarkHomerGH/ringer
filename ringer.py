@@ -1847,17 +1847,35 @@ def parse_check_samples(raw: Any, key: str) -> tuple[CheckSample, ...]:
     for item in raw:
         if not isinstance(item, dict):
             raise ValueError(f"task {key}: check_samples entries must be objects")
+        allowed_keys = {"files", "expect", "note", "args", "fail_contains"}
+        for item_key in item:
+            if item_key not in allowed_keys:
+                raise ValueError(f"task {key}: {item_key} is not a valid check_samples field")
         files_raw = item.get("files")
         if not isinstance(files_raw, dict) or not files_raw:
             raise ValueError(f"task {key}: files must be a non-empty object")
         files: list[tuple[str, str]] = []
+        normalized_names: list[tuple[str, ...]] = []
         for name, path in files_raw.items():
             if not isinstance(name, str) or not isinstance(path, str):
                 raise ValueError(f"task {key}: files must map strings to strings")
-            if Path(name).is_absolute() or ".." in Path(name).parts:
+            name_path = Path(name)
+            name_parts = tuple(part for part in name_path.parts if part != ".")
+            if (
+                not name_parts
+                or "\x00" in name
+                or name_path.is_absolute()
+                or ".." in name_path.parts
+            ):
                 raise ValueError(f"task {key}: files names must be relative without '..'")
+            for existing in normalized_names:
+                if name_parts == existing or name_parts[: len(existing)] == existing or existing[: len(name_parts)] == name_parts:
+                    raise ValueError(f"task {key}: files names must not collide or nest")
+            normalized_names.append(name_parts)
             files.append((name, path))
         expect = item.get("expect")
+        if not isinstance(expect, str):
+            raise ValueError(f"task {key}: expect must be 'pass' or 'fail'")
         if expect not in {"pass", "fail"}:
             raise ValueError(f"task {key}: expect must be 'pass' or 'fail'")
         note = item.get("note", "")
@@ -2077,18 +2095,17 @@ def analyze_check_fence(check: str) -> CheckFenceAnalysis:
 
 def check_has_control_token(check: str) -> bool:
     text = shell_newlines_as_separators(strip_shell_comments(check))
-    lexer = shlex.shlex(text, posix=True, punctuation_chars=True)
+    lexer = shlex.shlex(text, posix=False, punctuation_chars=True)
     lexer.whitespace_split = True
     try:
         tokens = list(lexer)
     except ValueError:
         return True
-    control_tokens = {"&&", "||", ";", "|", "&", "{"}
     punctuation = set("&|;()<>")
     for token in tokens:
-        if token in control_tokens:
+        if token in {"{", "}"}:
             return True
-        if any(char in token for char in "><") and all(char in punctuation for char in token):
+        if token and all(char in punctuation for char in token):
             return True
     return False
 
@@ -2505,10 +2522,20 @@ def lint_check_samples(task: TaskSpec) -> list[str]:
         print(f"lint: sample {task.key}/{sample.label}: {command}")
         sample_dir = Path(tempfile.mkdtemp(prefix=SAMPLE_DIR_PREFIX))
         try:
+            copy_failed = False
             for name, path in sample.files:
                 target = sample_dir / name
                 target.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(Path(path).expanduser(), target)
+                try:
+                    shutil.copyfile(Path(path).expanduser(), target)
+                except OSError as exc:
+                    findings.append(
+                        f"ERROR: {task.key}: sample {sample.label}: sample file {path} could not be copied: {exc}"
+                    )
+                    copy_failed = True
+                    break
+            if copy_failed:
+                continue
             returncode, timed_out, output = asyncio.run(
                 Verifier._run_check(
                     command,
