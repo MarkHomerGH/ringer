@@ -53,6 +53,7 @@ CONFIG_FILE_NAME = "config.toml"
 DEFAULT_ENGINE_NAME = "codex"
 DEFAULT_TIMEOUT_S = 900
 CHECK_TIMEOUT_S = 60
+SAMPLE_DIR_PREFIX = "ringer-sample-"
 DEFAULT_DASHBOARD_PORT_BASE = 8787
 DEFAULT_HUD_PORT = 8700
 DEFAULT_CATALOG_SOURCE = "https://openrouter.ai/api/v1/models"
@@ -1722,6 +1723,19 @@ def require_bool(value: Any, key: str, field: str) -> bool:
 
 
 @dataclass(frozen=True)
+class CheckSample:
+    files: tuple[tuple[str, str], ...]
+    expect: str
+    note: str = ""
+    args: str = ""
+    fail_contains: str = ""
+
+    @property
+    def label(self) -> str:
+        return self.note if self.note else self.files[0][0]
+
+
+@dataclass(frozen=True)
 class TaskSpec:
     key: str
     spec: str
@@ -1739,6 +1753,7 @@ class TaskSpec:
     # engine's {model} placeholder); empty means the engine's model_default.
     model: str = ""
     task_type: str = ""
+    check_samples: tuple[CheckSample, ...] = ()
 
     @classmethod
     def from_obj(cls, obj: dict[str, Any]) -> "TaskSpec":
@@ -1803,6 +1818,7 @@ class TaskSpec:
         task_type = obj.get("task_type", "")
         if not isinstance(task_type, str):
             raise ValueError(f"task {key}: task_type must be a string")
+        check_samples = parse_check_samples(obj.get("check_samples", []), key)
         return cls(
             key=key,
             spec=spec,
@@ -1818,7 +1834,53 @@ class TaskSpec:
             verified=verified.strip(),
             model=model.strip(),
             task_type=task_type.strip(),
+            check_samples=check_samples,
         )
+
+
+def parse_check_samples(raw: Any, key: str) -> tuple[CheckSample, ...]:
+    if raw is None:
+        return ()
+    if not isinstance(raw, list):
+        raise ValueError(f"task {key}: check_samples must be a list")
+    samples: list[CheckSample] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            raise ValueError(f"task {key}: check_samples entries must be objects")
+        files_raw = item.get("files")
+        if not isinstance(files_raw, dict) or not files_raw:
+            raise ValueError(f"task {key}: files must be a non-empty object")
+        files: list[tuple[str, str]] = []
+        for name, path in files_raw.items():
+            if not isinstance(name, str) or not isinstance(path, str):
+                raise ValueError(f"task {key}: files must map strings to strings")
+            if Path(name).is_absolute() or ".." in Path(name).parts:
+                raise ValueError(f"task {key}: files names must be relative without '..'")
+            files.append((name, path))
+        expect = item.get("expect")
+        if expect not in {"pass", "fail"}:
+            raise ValueError(f"task {key}: expect must be 'pass' or 'fail'")
+        note = item.get("note", "")
+        if not isinstance(note, str):
+            raise ValueError(f"task {key}: note must be a string")
+        args = item.get("args", "")
+        if not isinstance(args, str):
+            raise ValueError(f"task {key}: args must be a string")
+        fail_contains = item.get("fail_contains", "")
+        if not isinstance(fail_contains, str):
+            raise ValueError(f"task {key}: fail_contains must be a string")
+        if expect == "pass" and fail_contains:
+            raise ValueError(f"task {key}: fail_contains is only valid for fail samples")
+        samples.append(
+            CheckSample(
+                files=tuple(files),
+                expect=expect,
+                note=note,
+                args=args,
+                fail_contains=fail_contains,
+            )
+        )
+    return tuple(samples)
 
 
 @dataclass(frozen=True)
@@ -2011,6 +2073,41 @@ def analyze_check_fence(check: str) -> CheckFenceAnalysis:
         elif not earlier_absolute_cd:
             relative.append(candidate)
     return CheckFenceAnalysis(tuple(dict.fromkeys(fenced)), tuple(relative), False, tuple(unresolved))
+
+
+def check_has_control_token(check: str) -> bool:
+    text = shell_newlines_as_separators(strip_shell_comments(check))
+    lexer = shlex.shlex(text, posix=True, punctuation_chars=True)
+    lexer.whitespace_split = True
+    try:
+        tokens = list(lexer)
+    except ValueError:
+        return True
+    control_tokens = {"&&", "||", ";", "|", "&", "{"}
+    punctuation = set("&|;()<>")
+    for token in tokens:
+        if token in control_tokens:
+            return True
+        if any(char in token for char in "><") and all(char in punctuation for char in token):
+            return True
+    return False
+
+
+def effective_sample_command(check: str, args: str) -> str:
+    return f"{check} {args}" if args else check
+
+
+def check_samples_skipped(task: TaskSpec) -> bool:
+    if not task.check_samples:
+        return False
+    if "{{" in task.check:
+        return True
+    for sample in task.check_samples:
+        if "{{" in sample.args or "{{" in sample.note:
+            return True
+        if any("{{" in path for _, path in sample.files):
+            return True
+    return False
 
 
 def shell_newlines_as_separators(command: str) -> str:
@@ -2283,6 +2380,8 @@ def lint_manifest(
         findings.append("manifest: run_name model-scoreboard is reserved for the scoreboard page.")
 
     for task in manifest.tasks:
+        sample_findings = lint_check_samples(task)
+        findings.extend(sample_findings)
         fence = analyze_check_fence(task.check)
         for path in fence.fenced:
             if not is_dev_path(path) and not Path(path).is_file():
@@ -2376,6 +2475,107 @@ def lint_manifest(
         )
 
     return findings
+
+
+def lint_check_samples(task: TaskSpec) -> list[str]:
+    if not task.check_samples or check_samples_skipped(task):
+        return []
+    findings: list[str] = []
+    chained = check_has_control_token(task.check)
+    for sample in task.check_samples:
+        if sample.args and chained:
+            findings.append(
+                f"ERROR: {task.key}: sample {sample.label}: sample cannot take args on a chained check"
+            )
+            continue
+        missing_path = next(
+            (
+                path
+                for _, path in sample.files
+                if not Path(path).expanduser().is_file()
+            ),
+            None,
+        )
+        if missing_path is not None:
+            findings.append(
+                f"ERROR: {task.key}: sample {sample.label}: sample file {missing_path} not found"
+            )
+            continue
+        command = effective_sample_command(task.check, sample.args)
+        print(f"lint: sample {task.key}/{sample.label}: {command}")
+        sample_dir = Path(tempfile.mkdtemp(prefix=SAMPLE_DIR_PREFIX))
+        try:
+            for name, path in sample.files:
+                target = sample_dir / name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(Path(path).expanduser(), target)
+            returncode, timed_out, output = asyncio.run(
+                Verifier._run_check(
+                    command,
+                    sample_dir,
+                    timeout_s=task.check_timeout_s,
+                )
+            )
+            mismatch = sample_mismatch_finding(
+                task=task,
+                sample=sample,
+                command=command,
+                returncode=returncode,
+                timed_out=timed_out,
+                output=output,
+            )
+            if mismatch is not None:
+                findings.append(mismatch)
+        finally:
+            try:
+                shutil.rmtree(sample_dir)
+            except OSError as exc:
+                print(f"lint: sample {task.key}/{sample.label}: cleanup failed: {exc}")
+    return findings
+
+
+def sample_mismatch_finding(
+    *,
+    task: TaskSpec,
+    sample: CheckSample,
+    command: str,
+    returncode: int | None,
+    timed_out: bool,
+    output: str,
+) -> str | None:
+    if timed_out:
+        first = (
+            f"ERROR: {task.key}: sample {sample.label}: expected {sample.expect}, "
+            f"got timeout (after {task.check_timeout_s or CHECK_TIMEOUT_S}s)"
+        )
+        return format_sample_finding(first, command, output)
+    if sample.expect == "pass":
+        if returncode == 0:
+            return None
+        first = (
+            f"ERROR: {task.key}: sample {sample.label}: expected pass, "
+            f"got fail (exit {returncode})"
+        )
+        return format_sample_finding(first, command, output)
+    if returncode == 0:
+        first = (
+            f"ERROR: {task.key}: sample {sample.label}: expected fail, got pass (exit 0)"
+        )
+        return format_sample_finding(first, command, output)
+    if sample.fail_contains and sample.fail_contains.lower() not in output.lower():
+        first = (
+            f"ERROR: {task.key}: sample {sample.label}: expected fail containing "
+            f"{sample.fail_contains!r}, got fail (exit {returncode}) without it"
+        )
+        return format_sample_finding(first, command, output)
+    return None
+
+
+def format_sample_finding(first_line: str, command: str, output: str) -> str:
+    lines = [first_line, f"  command: {command}"]
+    tail = output.splitlines()[-10:]
+    lines.extend(f"  {line}" for line in tail)
+    return "\n".join(lines)
 
 
 FILE_POINTER_SPEC_RE = re.compile(

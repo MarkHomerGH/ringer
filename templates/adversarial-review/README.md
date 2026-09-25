@@ -32,6 +32,8 @@ The check validates the review contract. A passing report must have a summary an
 
 This cannot be gamed by a vague review because the validator requires concrete evidence and priority/confidence fields. It also fails reports that claim the reviewer patched or committed changes.
 
+Sample pack: the ten files in `checks/samples/` cover decorated finding labels, wrapped summary text, continued label values, explicit no-findings reports, missing Priority, missing Summary, and a reviewer claiming to patch the code. The template manifest wires them through `check_samples`; lint skips them while `{{KIT_DIR}}` is still a placeholder, then executes each sample once after you fill it in. Add a house sample by dropping a report into `checks/samples/` and adding a matching `check_samples` entry with the expected pass/fail verdict and, for expected failures, the specific failure text.
+
 ## Mix with
 
 Use `repo-feature` after synthesis when a confirmed finding needs an actual code change. Use `launch-kit` or `asset-swarm` before this when the thing under review is a launch page, media package, or public artifact produced by another swarm.

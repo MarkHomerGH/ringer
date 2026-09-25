@@ -10,6 +10,36 @@ import sys
 
 
 REQUIRED_LABELS = ["Finding", "Evidence", "Impact", "Fix", "Priority", "Confidence"]
+LABEL_RE = re.compile(
+    r"(?im)^[ \t]*(?:#{1,6}[ \t]*)?(?:[-*+][ \t]*)?(?:\*\*)?"
+    r"(Finding|Evidence|Impact|Fix|Priority|Confidence)(?:\*\*)?[ \t]*:[ \t]*(?:\*\*)?(.*)$"
+)
+
+
+def finding_blocks(region: str) -> list[str]:
+    markers = [match for match in LABEL_RE.finditer(region) if match.group(1).lower() == "finding"]
+    blocks: list[str] = []
+    for index, match in enumerate(markers):
+        end = markers[index + 1].start() if index + 1 < len(markers) else len(region)
+        blocks.append(region[match.start():end])
+    return blocks
+
+
+def label_values(block: str) -> dict[str, str]:
+    matches = list(LABEL_RE.finditer(block))
+    values: dict[str, str] = {}
+    for index, match in enumerate(matches):
+        label = match.group(1)
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(block)
+        continuation = block[match.end():end]
+        lines = [match.group(2).strip()]
+        for line in continuation.splitlines():
+            if line.startswith((" ", "\t")):
+                lines.append(line.strip())
+            elif line.strip():
+                break
+        values[label] = "\n".join(part for part in lines if part).strip()
+    return values
 
 
 def main() -> int:
@@ -36,28 +66,31 @@ def main() -> int:
     heading = re.search(r"(?im)^#+\s*findings\b.*$", text)
     if heading:
         tail = text[heading.end():]
-        stop = re.search(r"(?m)^#+\s*\S", tail)
-        findings_region = tail[: stop.start()] if stop else tail
-    finding_blocks = re.split(r"(?im)^Finding\s*:\s*", findings_region)
-    finding_count = len(finding_blocks) - 1
+        stop_at = len(tail)
+        for stop in re.finditer(r"(?m)^#+\s*\S.*$", tail):
+            if not LABEL_RE.match(stop.group(0)):
+                stop_at = stop.start()
+                break
+        findings_region = tail[:stop_at]
+    blocks = finding_blocks(findings_region)
+    finding_count = len(blocks)
     no_findings = bool(re.search(r"(?i)\bNO FINDINGS\b", findings_region))
+    no_findings = no_findings or bool(re.search(r"(?i)\bNo findings\.", findings_region))
 
     if finding_count == 0 and not no_findings:
         fails.append("report must contain NO FINDINGS or at least one Finding: block")
 
-    for index, block in enumerate(finding_blocks[1:], start=1):
-        block_text = "Finding: " + block
+    for index, block_text in enumerate(blocks, start=1):
+        labels = label_values(block_text)
         for label in REQUIRED_LABELS:
-            if not re.search(rf"(?im)^{label}\s*:", block_text):
+            if label not in labels:
                 fails.append(f"finding {index}: missing {label}: label")
-        priority = re.search(r"(?im)^Priority\s*:\s*(P[0-3])\b", block_text)
-        if not priority:
+        if not re.match(r"P[0-3]\b", labels.get("Priority", "")):
             fails.append(f"finding {index}: Priority must be P0, P1, P2, or P3")
-        confidence = re.search(r"(?im)^Confidence\s*:\s*(high|medium|low)\b", block_text)
-        if not confidence:
+        if not re.match(r"(high|medium|low)\b", labels.get("Confidence", ""), re.IGNORECASE):
             fails.append(f"finding {index}: Confidence must be high, medium, or low")
-        evidence = re.search(r"(?ims)^Evidence\s*:\s*(.+?)(?:\n[A-Z][A-Za-z ]+\s*:|\Z)", block_text)
-        if evidence and len(evidence.group(1).strip()) < 20:
+        evidence = labels.get("Evidence")
+        if evidence is not None and len(evidence.strip()) < 20:
             fails.append(f"finding {index}: Evidence is too thin; cite a file, route, log, or reproduction detail")
 
     if re.search(r"(?i)\b(i\s+(fixed|patched|committed|pushed|modified)|patched\s+the|committed\s+the|pushed\s+the)\b", text):
