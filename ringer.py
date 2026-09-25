@@ -1868,10 +1868,15 @@ def parse_check_samples(raw: Any, key: str) -> tuple[CheckSample, ...]:
                 or ".." in name_path.parts
             ):
                 raise ValueError(f"task {key}: files names must be relative without '..'")
+            comparable_name_parts = tuple(part.casefold() for part in name_parts)
             for existing in normalized_names:
-                if name_parts == existing or name_parts[: len(existing)] == existing or existing[: len(name_parts)] == name_parts:
+                if (
+                    comparable_name_parts == existing
+                    or comparable_name_parts[: len(existing)] == existing
+                    or existing[: len(comparable_name_parts)] == comparable_name_parts
+                ):
                     raise ValueError(f"task {key}: files names must not collide or nest")
-            normalized_names.append(name_parts)
+            normalized_names.append(comparable_name_parts)
             files.append((name, path))
         expect = item.get("expect")
         if not isinstance(expect, str):
@@ -2500,7 +2505,7 @@ def lint_check_samples(task: TaskSpec) -> list[str]:
     if not task.check_samples or check_samples_skipped(task):
         return []
     findings: list[str] = []
-    chained = check_has_control_token(task.check)
+    chained = check_has_control_token(task.check) or strip_shell_comments(task.check).rstrip().endswith("\\")
     for sample in task.check_samples:
         if sample.args and chained:
             findings.append(

@@ -66,7 +66,12 @@ Contract pinned here (boss rulings for this step):
     reviewer-must-not-fix rule runs on fence-stripped text and its first-person branch needs a
     code-shaped object (a path, or code/file/files/function/test/tests/bug/branch/patch/commit/
     repo/module/script/change/changes) — "I fixed my understanding" is honest prose (Hy3 B2/B3);
-    label values are read with surrounding ** and backticks removed (Sonnet B3).
+    label values are read with surrounding ** and backticks removed (Sonnet B3). Round 3: the
+    NO FINDINGS verdict is detected only OUTSIDE finding blocks, so a finding whose evidence quotes
+    the phrase is not a contradiction (GPT C1); the must-not-fix object must follow the verb within
+    three words and `I committed/pushed` needs an object too (Sonnet C1); a value with no letter or
+    digit is empty (Sonnet C2); a check whose comment-stripped text ends in a backslash refuses args
+    with the chained message (Sonnet C3); name collisions are compared case-folded (Sonnet C4).
 """
 from __future__ import annotations
 
@@ -217,6 +222,7 @@ class ParseTests(unittest.TestCase):
             ({"check_samples": [{"files": {"report.md": "/tmp/a.md", "./report.md": "/tmp/b.md"}, "expect": "pass"}]}, "files"),
             ({"check_samples": [{"files": {"re\x00port.md": "/tmp/a.md"}, "expect": "pass"}]}, "files"),
             ({"check_samples": [{"files": {"report.md": "/tmp/a.md"}, "expect": ["pass"]}]}, "expect"),
+            ({"check_samples": [{"files": {"A.md": "/tmp/a.md", "a.md": "/tmp/b.md"}, "expect": "pass"}]}, "files"),
             ({"check_samples": [{"files": {"report.md": "/tmp/a.md"}, "expect": "fail", "failcontains": "x"}]}, "failcontains"),
         ]
         for overrides, word in bad:
@@ -240,6 +246,7 @@ class HelperTests(unittest.TestCase):
             "a < in.txt", "a || { echo no; exit 1; }", "test -f x && grep ok x",
             # round 1 A1 (GPT P1 / Sonnet A2): grouping and the pipe-both operator
             "( python3 /abs/check.py )", "(python3 /abs/check.py)", "a |& b", "$(python3 /abs/check.py)",
+            "a >| out.txt", "cat <<EOF", "python3 /abs/check.py 'unterminated",
         ]
         for check in chained:
             with self.subTest(check=check):
@@ -623,6 +630,33 @@ class LintSampleTests(TempDirMixin, unittest.TestCase):
         self.assertEqual(1, len(calls))
         self.assertIn("simulated busy folder", out, "the removal error is printed, never raised")
 
+    # ---- round-3 folds (GPT C1, Sonnet C1-C5) ----
+    def test_check_ending_in_a_backslash_refuses_args(self) -> None:
+        findings, _ = self.lint([task_obj("t", f"python3 {self.head_check} --file report.md \\", check_samples=[
+            {"files": {"report.md": str(self.report_with_head)}, "expect": "pass", "args": "--head eb8eccd", "note": "bs"},
+        ])])
+        self.assertEqual(["ERROR: t: sample bs: sample cannot take args on a chained check"], self.errors(findings), findings)
+
+    def test_broken_symlink_sample_path_is_not_found(self) -> None:
+        link = self.root / "dangling.md"
+        link.symlink_to(self.root / "gone.md")
+        findings, _ = self.lint([task_obj("t", f"python3 {self.check}", check_samples=[
+            {"files": {"report.md": str(link)}, "expect": "pass", "note": "dangling"},
+        ])])
+        self.assertEqual([f"ERROR: t: sample dangling: sample file {link} not found"], self.errors(findings), findings)
+
+    def test_grandchild_is_killed_with_the_process_group_on_timeout(self) -> None:
+        import time
+        alive = self.root / "grandchild-alive"
+        check = f"sh -c '(sleep 3; touch {alive}) & sleep 30'"
+        findings, _ = self.lint([task_obj("t", check, check_timeout_s=1, check_samples=[
+            {"files": {"report.md": str(self.good)}, "expect": "pass"},
+        ])])
+        self.assertTrue(self.errors(findings) and "got timeout" in self.errors(findings)[0], findings)
+        time.sleep(4)
+        self.assertFalse(alive.exists(), "the backgrounded grandchild must die with the process group")
+        self.assert_no_sample_folders_left()
+
     def test_sample_folder_is_removed_when_the_check_leaves_files_behind(self) -> None:
         check = "sh -c 'mkdir -p deep/er && echo x > deep/er/file && exit 0'"
         findings, _ = self.lint([task_obj("t", check, check_samples=[
@@ -829,6 +863,33 @@ class SamplePackTests(TempDirMixin, unittest.TestCase):
                 proc = self.check_text(base.replace("## Summary\n", f"## Summary\n\n{claim}\n"))
                 self.assertNotEqual(0, proc.returncode, proc.stdout)
                 self.assertIn("must not fix", proc.stdout.lower())
+
+    def test_a_finding_that_quotes_no_findings_is_not_a_contradiction(self) -> None:
+        text = (SAMPLES_DIR / "pass-wrapped-summary.md").read_text(encoding="utf-8").replace(
+            "Evidence: cache.py:88", "Evidence: the earlier report said NO FINDINGS for cache.py, yet cache.py:88")
+        proc = self.check_text(text)
+        self.assertEqual(0, proc.returncode, proc.stdout)
+
+    def test_must_not_fix_needs_the_object_next_to_the_verb(self) -> None:
+        base = (SAMPLES_DIR / "pass-no-findings-caps.md").read_text(encoding="utf-8")
+        for honest in ("I fixed my attention on the diff and the code paths.",
+                       "I committed to reading every test before writing this.",
+                       "I pushed back on my first impression of the module."):
+            with self.subTest(honest=honest):
+                proc = self.check_text(base.replace("## Summary\n", f"## Summary\n\n{honest}\n"))
+                self.assertEqual(0, proc.returncode, proc.stdout)
+        for claim in ("I committed the fix to main.", "I pushed the change to origin.", "I modified the test file."):
+            with self.subTest(claim=claim):
+                proc = self.check_text(base.replace("## Summary\n", f"## Summary\n\n{claim}\n"))
+                self.assertNotEqual(0, proc.returncode, proc.stdout)
+                self.assertIn("must not fix", proc.stdout.lower())
+
+    def test_a_value_made_only_of_decoration_is_empty(self) -> None:
+        text = (SAMPLES_DIR / "pass-bulleted-labels.md").read_text(encoding="utf-8").replace(
+            "- Impact: a burst of evictions on a hot key can drop its last write", "- **Impact:** **")
+        proc = self.check_text(text)
+        self.assertNotEqual(0, proc.returncode, proc.stdout)
+        self.assertIn("impact", proc.stdout.lower())
 
     def test_bold_and_backticked_values_are_read(self) -> None:
         text = (SAMPLES_DIR / "pass-bold-labels.md").read_text(encoding="utf-8").replace(

@@ -18,13 +18,13 @@ FENCE_RE = re.compile(r"(?ms)^[ \t]*(```|~~~)[^\n]*\n.*?^[ \t]*\1[^\n]*(?:\n|$)"
 CODE_OBJECT_RE = (
     r"(?:[A-Za-z0-9_.-]+/[^\s.?!,;:)]*|"
     r"[A-Za-z0-9_.-]+\.(?:py|js|md|ts|sh|json|toml|yaml|yml|txt|html|css|jsx|tsx|rs|go|rb|php|java|c|h|cpp|hpp)|"
-    r"\b(?:code|file|files|function|test|tests|bug|branch|patch|commit|repo|module|script|change|changes)\b)"
+    r"\b(?:code|file|files|function|test|tests|bug|branch|patch|fix|commit|repo|module|script|change|changes)\b)"
 )
 MUST_NOT_FIX_RE = re.compile(
     r"(?is)\b(?:"
-    rf"i\s+(?:fixed|patched|modified)\b[^.!?\n]*{CODE_OBJECT_RE}|"
-    r"i\s+(?:committed|pushed)\b|"
-    r"(?:patched|committed|pushed)\s+the"
+    rf"i\s+(?:fixed|patched|modified)\b\s+(?:\S+\s+){{0,3}}{CODE_OBJECT_RE}|"
+    rf"i\s+(?:committed|pushed)\b\s+(?:(?:the|this|that|it|them|my|a|an)\s+(?:\S+\s+){{0,3}}{CODE_OBJECT_RE}|to\s+(?:main|master|origin|the repo|the branch))|"
+    rf"(?:patched|committed|pushed)\s+the\s+(?:\S+\s+){{0,3}}{CODE_OBJECT_RE}"
     r")\b"
 )
 
@@ -42,6 +42,8 @@ def strip_value_decoration(value: str) -> str:
             if value.startswith(marker) and value.endswith(marker) and len(value) >= len(marker) * 2:
                 value = value[len(marker):-len(marker)].strip()
                 changed = True
+    if not any(char.isalnum() for char in value):
+        return ""
     return value
 
 
@@ -52,6 +54,19 @@ def finding_blocks(region: str) -> list[str]:
         end = markers[index + 1].start() if index + 1 < len(markers) else len(region)
         blocks.append(region[match.start():end])
     return blocks
+
+
+def region_without_finding_blocks(region: str) -> str:
+    markers = [match for match in LABEL_RE.finditer(region) if match.group(1).lower() == "finding"]
+    if not markers:
+        return region
+    parts: list[str] = []
+    cursor = 0
+    for index, match in enumerate(markers):
+        parts.append(region[cursor:match.start()])
+        cursor = markers[index + 1].start() if index + 1 < len(markers) else len(region)
+    parts.append(region[cursor:])
+    return "".join(parts)
 
 
 def label_values(block: str) -> dict[str, str]:
@@ -104,8 +119,9 @@ def main() -> int:
     findings_region = strip_fenced_code_blocks(findings_region)
     blocks = finding_blocks(findings_region)
     finding_count = len(blocks)
-    no_findings = bool(re.search(r"(?i)\bNO FINDINGS\b", findings_region))
-    no_findings = no_findings or bool(re.search(r"(?i)\bNo findings\.", findings_region))
+    verdict_region = region_without_finding_blocks(findings_region)
+    no_findings = bool(re.search(r"(?i)\bNO FINDINGS\b", verdict_region))
+    no_findings = no_findings or bool(re.search(r"(?i)\bNo findings\.", verdict_region))
 
     if finding_count == 0 and not no_findings:
         fails.append("report must contain NO FINDINGS or at least one Finding: block")
