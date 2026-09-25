@@ -21,8 +21,10 @@ Contract pinned here (boss rulings for this step):
     round 1 A1) or a standalone { or } — and an operator INSIDE quotes (`'&&'`, `--sep '>'`,
     `--verify-command 'a && b'`) is NOT a control token because the quotes are honoured (round 1
     Sonnet A2: tokenise so that quoted text keeps its quotes, e.g. shlex posix=False). A tokeniser
-    error counts as chained. `effective_sample_command(check, args)` = check + " " + args when args
-    is non-empty, else check (no other transformation).
+    error counts as chained. `effective_sample_command(check, args)` = strip_shell_comments(check)
+    with trailing whitespace removed + " " + args when args is non-empty (round 2 Sonnet B1 = Hy3
+    B1: a trailing `# comment` would otherwise swallow the args; the printed effective command is
+    exactly what runs), else check unchanged. args are shell text appended verbatim (README says so).
   * `check_samples_skipped(task) -> bool`: True when "{{" occurs in the check, any sample path, any
     args or any note — then NO sample is executed and no sample finding is emitted, before any other
     sample rule (placeholder manifests lint exactly as today: X3).
@@ -46,6 +48,7 @@ Contract pinned here (boss rulings for this step):
   * Other ERROR findings (nothing executed for that sample):
         "ERROR: <key>: sample <label>: sample cannot take args on a chained check"   (args + control token)
         "ERROR: <key>: sample <label>: sample file <path> not found"
+        "ERROR: <key>: sample <label>: sample file <path> is not a regular file"   (exists, e.g. a folder — round 2 Sonnet B5)
         "ERROR: <key>: sample <label>: sample file <path> could not be copied: <reason>"  (copy OSError —
         the folder is still removed; round 1 Sonnet A1)
     Precedence per sample: placeholder skip (whole task) → args-on-chained → file missing → copy.
@@ -58,7 +61,12 @@ Contract pinned here (boss rulings for this step):
     path lints with zero ERROR findings — which requires check_review_report.py to accept
     heading/bold/bulleted/numbered-list label decoration while still failing the three fail samples
     for their stated reasons; a Finding: block inside a ``` fenced code block is not a finding, and
-    every required label needs a non-empty value (round 1 GPT A3 / Sonnet A6).
+    every required label needs a non-empty value (round 1 GPT A3 / Sonnet A6). Round 2: a report that
+    says NO FINDINGS and also carries a finding block fails as a contradiction (Hy3 B1); the
+    reviewer-must-not-fix rule runs on fence-stripped text and its first-person branch needs a
+    code-shaped object (a path, or code/file/files/function/test/tests/bug/branch/patch/commit/
+    repo/module/script/change/changes) — "I fixed my understanding" is honest prose (Hy3 B2/B3);
+    label values are read with surrounding ** and backticks removed (Sonnet B3).
 """
 from __future__ import annotations
 
@@ -254,6 +262,13 @@ class HelperTests(unittest.TestCase):
                          effective_sample_command("python3 /abs/c.py --file report.md", "--head abc1234"))
         self.assertEqual("python3 /abs/c.py --file report.md",
                          effective_sample_command("python3 /abs/c.py --file report.md", ""))
+        # round 2 Sonnet B1 = Hy3 B1: a trailing comment must not swallow the args
+        self.assertEqual("cat report.md --head abc1234",
+                         effective_sample_command("cat report.md   # boss note", "--head abc1234"))
+        self.assertEqual("cat report.md   # boss note",
+                         effective_sample_command("cat report.md   # boss note", ""), "no args: the check is unchanged")
+        self.assertEqual("grep -c '#' report.md --head x",
+                         effective_sample_command("grep -c '#' report.md", "--head x"), "a quoted # is not a comment")
 
     def test_placeholder_skip(self) -> None:
         def task(check: str = "python3 /abs/c.py --file report.md", **sample: object) -> TaskSpec:
@@ -525,6 +540,89 @@ class LintSampleTests(TempDirMixin, unittest.TestCase):
         self.assertIn("[ringer.py] check timed out after 1s", errs[0])
         self.assert_no_sample_folders_left()
 
+    # ---- round-2 folds (Sonnet B1/B4/B5, Hy3 shell-prober B1) ----
+    def test_trailing_comment_does_not_swallow_args(self) -> None:
+        check = f"python3 {self.head_check} --file report.md   # house note"
+        findings, out = self.lint([task_obj("t", check, check_samples=[
+            {"files": {"report.md": str(self.report_with_head)}, "expect": "fail", "args": "--head 0000000",
+             "fail_contains": "never names the reviewed HEAD", "note": "wrong head"},
+        ])])
+        self.assertEqual([], self.errors(findings), "with the comment stripped, --head 0000000 reaches the check and it fails as expected")
+        self.assertIn(f"lint: sample t/wrong head: python3 {self.head_check} --file report.md --head 0000000\n", out)
+
+    def test_directory_sample_path_says_not_a_regular_file(self) -> None:
+        folder = self.root / "folder.md"
+        folder.mkdir()
+        findings, _ = self.lint([task_obj("t", f"python3 {self.check}", check_samples=[
+            {"files": {"report.md": str(folder)}, "expect": "pass", "note": "dir"},
+        ])])
+        self.assertEqual([f"ERROR: t: sample dir: sample file {folder} is not a regular file"], self.errors(findings), findings)
+
+    def test_tilde_sample_path_is_expanded(self) -> None:
+        home = self.root / "home"
+        home.mkdir()
+        (home / "s.md").write_bytes(self.good.read_bytes())
+        old = os.environ.get("HOME")
+        os.environ["HOME"] = str(home)
+        self.addCleanup(lambda: os.environ.__setitem__("HOME", old) if old is not None else None)
+        findings, _ = self.lint([task_obj("t", f"python3 {self.check}", check_samples=[
+            {"files": {"report.md": "~/s.md"}, "expect": "pass"},
+        ])])
+        self.assertEqual([], self.errors(findings), findings)
+
+    def test_output_excerpt_is_capped_at_the_last_ten_lines(self) -> None:
+        check = "sh -c 'i=1; while [ $i -le 30 ]; do echo line$i; i=$((i+1)); done; exit 1'"
+        findings, _ = self.lint([task_obj("t", check, check_samples=[
+            {"files": {"report.md": str(self.good)}, "expect": "pass"},
+        ])])
+        errs = self.errors(findings)
+        self.assertEqual(1, len(errs), findings)
+        self.assertIn("line30", errs[0])
+        self.assertIn("line21", errs[0])
+        self.assertNotIn("line20\n", errs[0] + "\n")
+        self.assertNotIn("line1\n", errs[0] + "\n")
+
+    def test_default_timeout_is_read_at_call_time(self) -> None:
+        old = ringer.CHECK_TIMEOUT_S
+        ringer.CHECK_TIMEOUT_S = 1
+        self.addCleanup(lambda: setattr(ringer, "CHECK_TIMEOUT_S", old))
+        findings, _ = self.lint([task_obj("t", "sleep 20", check_samples=[
+            {"files": {"report.md": str(self.good)}, "expect": "pass", "note": "default"},
+        ])])
+        errs = self.errors(findings)
+        self.assertEqual(1, len(errs), findings)
+        self.assertEqual("ERROR: t: sample default: expected pass, got timeout (after 1s)", errs[0].splitlines()[0])
+        self.assert_no_sample_folders_left()
+
+    def test_stdin_is_closed_for_the_sample_check(self) -> None:
+        # `cat` with an open stdin would wait forever; with stdin closed it returns at once.
+        findings, _ = self.lint([task_obj("t", "cat", check_timeout_s=5, check_samples=[
+            {"files": {"report.md": str(self.good)}, "expect": "pass"},
+        ])])
+        self.assertEqual([], self.errors(findings), findings)
+
+    def test_rmtree_failure_is_printed_never_raised(self) -> None:
+        import shutil
+        real = shutil.rmtree
+        calls: list[str] = []
+
+        def boom(path, *a, **k):  # type: ignore[no-untyped-def]
+            calls.append(str(path))
+            raise OSError("simulated busy folder")
+
+        shutil.rmtree = boom  # type: ignore[assignment]
+        try:
+            findings, out = self.lint([task_obj("t", f"python3 {self.check}", check_samples=[
+                {"files": {"report.md": str(self.good)}, "expect": "pass"},
+            ])])
+        finally:
+            shutil.rmtree = real  # type: ignore[assignment]
+            for path in calls:
+                real(path, ignore_errors=True)
+        self.assertEqual([], self.errors(findings), findings)
+        self.assertEqual(1, len(calls))
+        self.assertIn("simulated busy folder", out, "the removal error is printed, never raised")
+
     def test_sample_folder_is_removed_when_the_check_leaves_files_behind(self) -> None:
         check = "sh -c 'mkdir -p deep/er && echo x > deep/er/file && exit 0'"
         findings, _ = self.lint([task_obj("t", check, check_samples=[
@@ -709,6 +807,34 @@ class SamplePackTests(TempDirMixin, unittest.TestCase):
         proc = self.check_text(text)
         self.assertNotEqual(0, proc.returncode, proc.stdout)
         self.assertIn("impact", proc.stdout.lower())
+
+    def test_no_findings_plus_a_finding_block_is_a_contradiction(self) -> None:
+        text = (SAMPLES_DIR / "pass-wrapped-summary.md").read_text(encoding="utf-8").replace(
+            "## Findings\n", "## Findings\n\nNO FINDINGS\n")
+        proc = self.check_text(text)
+        self.assertNotEqual(0, proc.returncode, proc.stdout)
+        self.assertIn("no findings", proc.stdout.lower())
+        self.assertIn("finding block", proc.stdout.lower())
+
+    def test_honest_first_person_prose_and_quoted_commit_notes_do_not_trip_must_not_fix(self) -> None:
+        base = (SAMPLES_DIR / "pass-no-findings-caps.md").read_text(encoding="utf-8")
+        honest = base.replace("## Summary\n", "## Summary\n\nI fixed my understanding of the eviction path on a second read.\n")
+        proc = self.check_text(honest)
+        self.assertEqual(0, proc.returncode, proc.stdout)
+        quoted = base.replace("## Summary\n", "## Summary\n\nThe author's commit note reads:\n\n```\nI fixed the eviction ordering in cache.py\n```\n")
+        proc = self.check_text(quoted)
+        self.assertEqual(0, proc.returncode, proc.stdout)
+        for claim in ("I patched cache.py to flush first.", "I committed the fix.", "I fixed the eviction bug in cache.py."):
+            with self.subTest(claim=claim):
+                proc = self.check_text(base.replace("## Summary\n", f"## Summary\n\n{claim}\n"))
+                self.assertNotEqual(0, proc.returncode, proc.stdout)
+                self.assertIn("must not fix", proc.stdout.lower())
+
+    def test_bold_and_backticked_values_are_read(self) -> None:
+        text = (SAMPLES_DIR / "pass-bold-labels.md").read_text(encoding="utf-8").replace(
+            "**Priority:** P1", "**Priority:** **P1**").replace("**Confidence:** high", "**Confidence:** `high`")
+        proc = self.check_text(text)
+        self.assertEqual(0, proc.returncode, proc.stdout)
 
     def test_numbered_list_decoration_passes(self) -> None:
         proc = self.check_text(

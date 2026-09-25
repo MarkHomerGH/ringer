@@ -15,10 +15,34 @@ LABEL_RE = re.compile(
     r"(Finding|Evidence|Impact|Fix|Priority|Confidence)(?:\*\*)?[ \t]*:[ \t]*(?:\*\*)?(.*)$"
 )
 FENCE_RE = re.compile(r"(?ms)^[ \t]*(```|~~~)[^\n]*\n.*?^[ \t]*\1[^\n]*(?:\n|$)")
+CODE_OBJECT_RE = (
+    r"(?:[A-Za-z0-9_.-]+/[^\s.?!,;:)]*|"
+    r"[A-Za-z0-9_.-]+\.(?:py|js|md|ts|sh|json|toml|yaml|yml|txt|html|css|jsx|tsx|rs|go|rb|php|java|c|h|cpp|hpp)|"
+    r"\b(?:code|file|files|function|test|tests|bug|branch|patch|commit|repo|module|script|change|changes)\b)"
+)
+MUST_NOT_FIX_RE = re.compile(
+    r"(?is)\b(?:"
+    rf"i\s+(?:fixed|patched|modified)\b[^.!?\n]*{CODE_OBJECT_RE}|"
+    r"i\s+(?:committed|pushed)\b|"
+    r"(?:patched|committed|pushed)\s+the"
+    r")\b"
+)
 
 
 def strip_fenced_code_blocks(text: str) -> str:
     return FENCE_RE.sub("", text)
+
+
+def strip_value_decoration(value: str) -> str:
+    value = value.strip()
+    changed = True
+    while changed:
+        changed = False
+        for marker in ("**", "`"):
+            if value.startswith(marker) and value.endswith(marker) and len(value) >= len(marker) * 2:
+                value = value[len(marker):-len(marker)].strip()
+                changed = True
+    return value
 
 
 def finding_blocks(region: str) -> list[str]:
@@ -43,7 +67,7 @@ def label_values(block: str) -> dict[str, str]:
                 lines.append(line.strip())
             elif line.strip():
                 break
-        values[label] = "\n".join(part for part in lines if part).strip()
+        values[label] = strip_value_decoration("\n".join(part for part in lines if part))
     return values
 
 
@@ -85,6 +109,8 @@ def main() -> int:
 
     if finding_count == 0 and not no_findings:
         fails.append("report must contain NO FINDINGS or at least one Finding: block")
+    if no_findings and finding_count > 0:
+        fails.append(f"report claims NO FINDINGS but contains {finding_count} finding block(s)")
 
     for index, block_text in enumerate(blocks, start=1):
         labels = label_values(block_text)
@@ -101,7 +127,7 @@ def main() -> int:
         if evidence is not None and len(evidence.strip()) < 20:
             fails.append(f"finding {index}: Evidence is too thin; cite a file, route, log, or reproduction detail")
 
-    if re.search(r"(?i)\b(i\s+(fixed|patched|committed|pushed|modified)|patched\s+the|committed\s+the|pushed\s+the)\b", text):
+    if MUST_NOT_FIX_RE.search(strip_fenced_code_blocks(text)):
         fails.append("reviewer appears to claim it changed files; reviewers must not fix")
 
     if fails:

@@ -2111,7 +2111,9 @@ def check_has_control_token(check: str) -> bool:
 
 
 def effective_sample_command(check: str, args: str) -> str:
-    return f"{check} {args}" if args else check
+    if not args:
+        return check
+    return f"{strip_shell_comments(check).rstrip()} {args}"
 
 
 def check_samples_skipped(task: TaskSpec) -> bool:
@@ -2505,18 +2507,21 @@ def lint_check_samples(task: TaskSpec) -> list[str]:
                 f"ERROR: {task.key}: sample {sample.label}: sample cannot take args on a chained check"
             )
             continue
-        missing_path = next(
-            (
-                path
-                for _, path in sample.files
-                if not Path(path).expanduser().is_file()
-            ),
-            None,
-        )
-        if missing_path is not None:
-            findings.append(
-                f"ERROR: {task.key}: sample {sample.label}: sample file {missing_path} not found"
-            )
+        sample_path_error = None
+        for _, path in sample.files:
+            expanded_path = Path(path).expanduser()
+            if not expanded_path.exists():
+                sample_path_error = (
+                    f"ERROR: {task.key}: sample {sample.label}: sample file {path} not found"
+                )
+                break
+            if not expanded_path.is_file():
+                sample_path_error = (
+                    f"ERROR: {task.key}: sample {sample.label}: sample file {path} is not a regular file"
+                )
+                break
+        if sample_path_error is not None:
+            findings.append(sample_path_error)
             continue
         command = effective_sample_command(task.check, sample.args)
         print(f"lint: sample {task.key}/{sample.label}: {command}")
