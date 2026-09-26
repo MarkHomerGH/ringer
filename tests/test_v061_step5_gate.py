@@ -333,6 +333,43 @@ class ProbeAndSpawnTests(TempMixin, unittest.TestCase):
         self.assertEqual(0, rc)
         self.assertIn(f"already running: http://{TAILNET}:8718", out.getvalue())
 
+    # ---- post-loop gate audit (round 2 Sonnet B3) ----
+    def test_run_persistent_hud_hands_the_effective_host_to_the_server(self) -> None:
+        captured: dict[str, object] = {}
+
+        class FakeServer:
+            def __init__(self, state_dir, preferred_port=8700, *, open_viewer=True, host="127.0.0.1"):  # type: ignore[no-untyped-def]
+                captured.update(state_dir=state_dir, preferred_port=preferred_port, host=host)
+                self.model_log_path = None
+                self.default_model_log_path = None
+                self.update_status = None
+
+            def start(self):  # type: ignore[no-untyped-def]
+                captured["started"] = True
+                return captured["preferred_port"]
+
+            def stop(self):  # type: ignore[no-untyped-def]
+                captured["stopped"] = True
+
+        def interrupt(_seconds):  # type: ignore[no-untyped-def]
+            raise KeyboardInterrupt  # end run_persistent_hud's serve loop immediately
+
+        real_server, real_maint, real_sleep = ringer.PersistentHudServer, ringer.start_hud_update_maintenance, ringer.time.sleep
+        ringer.PersistentHudServer = FakeServer  # type: ignore[assignment,misc]
+        ringer.start_hud_update_maintenance = lambda *a, **k: None  # type: ignore[assignment]
+        ringer.time.sleep = interrupt  # type: ignore[assignment]
+        self.addCleanup(lambda: setattr(ringer, "PersistentHudServer", real_server))
+        self.addCleanup(lambda: setattr(ringer, "start_hud_update_maintenance", real_maint))
+        self.addCleanup(lambda: setattr(ringer.time, "sleep", real_sleep))
+        ringer.hud_is_alive = lambda port, host=DEFAULT_HUD_HOST: False  # type: ignore[assignment]
+        with contextlib.redirect_stdout(io.StringIO()):
+            rc = run_persistent_hud(config(self.root, host=TAILNET, port=8719), port=None, open_viewer=False, host=None)
+        self.assertEqual(0, rc)
+        self.assertEqual((TAILNET, 8719), (captured["host"], captured["preferred_port"]))
+        with contextlib.redirect_stdout(io.StringIO()):
+            run_persistent_hud(config(self.root, port=8720), port=8721, open_viewer=False, host="127.0.0.1")
+        self.assertEqual(("127.0.0.1", 8721), (captured["host"], captured["preferred_port"]), "a loopback flag with no configured host proceeds on loopback")
+
     def test_run_persistent_hud_already_running_names_the_configured_host(self) -> None:
         ringer.hud_is_alive = lambda port, host=DEFAULT_HUD_HOST: True  # type: ignore[assignment]
         ringer.open_in_browser = lambda url: None  # type: ignore[assignment]
@@ -399,6 +436,17 @@ class ServerTests(TempMixin, unittest.TestCase):
             self.assertEqual(1, len(opened))
         else:
             self.assertNotEqual(403, status)
+
+    def test_per_run_dashboard_stays_on_loopback(self) -> None:
+        state_path = self.root / "state" / "runs" / "x.json"
+        state_path.parent.mkdir(parents=True)
+        state_path.write_text(json.dumps({"run_id": "x", "run_name": "x", "tasks": []}), encoding="utf-8")
+        dashboard = ringer.Dashboard(state_path=state_path, preferred_port=0, open_viewer=False)
+        with contextlib.redirect_stdout(io.StringIO()):
+            dashboard.start()
+        self.addCleanup(dashboard.stop)
+        self.assertEqual("127.0.0.1", dashboard.httpd.server_address[0])  # type: ignore[union-attr]
+        self.assertNotIn("host", ringer.Dashboard.__init__.__code__.co_varnames, "the per-run dashboard takes no host this slice")
 
     def test_other_bind_errors_carry_their_strerror(self) -> None:
         import errno
@@ -511,6 +559,13 @@ class CliTests(TempMixin, unittest.TestCase):
         self.assertNotIn("Ringside:", proc.stdout)
         self.assert_nothing_listening()
 
+    def test_config_only_in_range_host_not_on_this_machine_fails_at_bind(self) -> None:
+        proc = self.hud(self.write_config("100.64.0.1"))
+        self.assertNotEqual(0, proc.returncode, proc.stdout)
+        self.assertIn("is not an address on this machine", proc.stdout)
+        self.assertIn("100.64.0.1", proc.stdout)
+        self.assert_nothing_listening()
+
     def test_bad_config_host_is_refused_at_load(self) -> None:
         proc = self.hud(self.write_config("0.0.0.0"))
         self.assertNotEqual(0, proc.returncode, proc.stdout)
@@ -560,6 +615,13 @@ class PostRunHintTests(TempMixin, unittest.TestCase):
         self.assertEqual(0, proc.returncode, proc.stdout)
         self.assertIn(f"http://{TAILNET}:8799", proc.stdout)
         self.assertNotIn("http://127.0.0.1:8700", proc.stdout, "the hint no longer hard-codes loopback:8700")
+        # H2: with no [hud] host the hint reads exactly as it did before this step.
+        cfg.write_text(cfg.read_text(encoding="utf-8").replace(f'host = "{TAILNET}"\n', "").replace("port = 8799", "port = 8700"), encoding="utf-8")
+        proc = subprocess.run([sys.executable, "-B", str(RINGER_PATH), "--config", str(cfg), "run", str(manifest),
+                               "--identity", "gate", "--no-dashboard"], cwd=ROOT, env=env, text=True,
+                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=120, check=False)
+        self.assertEqual(0, proc.returncode, proc.stdout)
+        self.assertIn("for the full Ringside view (http://127.0.0.1:8700).", proc.stdout)
 
 
 if __name__ == "__main__":
