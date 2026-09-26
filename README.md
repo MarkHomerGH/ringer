@@ -281,7 +281,7 @@ Ringside is a local web page — no install, no account, nothing leaves your mac
 ./ringer.py hud                 # or open it any time → http://127.0.0.1:8700
 ```
 
-Set `[hud] host` as the single source for where Ringside listens: use loopback or the machine's Tailscale `100.64.0.0/10` address, never `0.0.0.0`. The `hud --host` flag is a per-process override that must agree with the config when the config names a non-default host; the effective host controls the bind, alive probe, run-time auto-spawn, and every printed URL. `/api/open-folder` is not available off loopback, and the per-run dashboard still stays on `127.0.0.1`.
+Set `[hud] host` as the single source for where Ringside listens: use loopback or the machine's Tailscale `100.64.0.0/10` address, never `0.0.0.0`. The `hud --host` flag is a per-process override that must agree whenever the config file writes `[hud] host`, including `127.0.0.1`; the effective host controls the bind, alive probe, run-time auto-spawn, and every printed URL. `/api/open-folder` is not available off loopback, and the per-run dashboard still stays on `127.0.0.1`.
 
 The top of the page is the run's live results document: what the job is, a progress bar of rounds, and "The work" — every deliverable each worker filed, with a plain-English line saying what the check proved and the raw check output one click away. Below it, the agents: expand a worker to see the exact brief it was handed, which engine and model are typing, and its live work stream. Past runs stay in a versioned library, and a swarm whose orchestrator *died* without finishing gets its own unmissable state — the failure mode every dashboard forgets.
 

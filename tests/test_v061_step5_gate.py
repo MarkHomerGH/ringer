@@ -36,6 +36,14 @@ Contract pinned here (boss rulings for this step):
     request's Host: header (a spoofed Host: header changes nothing either way).
   * The per-run Dashboard (the second bind site) stays on 127.0.0.1 — untouched.
   * Refusals exit non-zero with the sentence on stderr (main()'s existing "ringer.py: error:" path).
+  Round 1 folds (boss-verified): `AppConfig.hud_host_set: bool = False` is True when the config file
+    WROTE `[hud] host` (even "127.0.0.1"); the disagreement rule is "flag given AND hud_host_set AND
+    flag != config.hud_host", so an explicit loopback config plus `--host 100.x` refuses, and the
+    refusal happens before any alive probe (GPT A1 = Sonnet A1). The auto-spawn child inherits the
+    parent's config: argv gains `--config <config.path>` right after the script path when config.path
+    is not None (Hy3 startup A1 = Sonnet A3); when the 3 s poll ends with no answer the parent prints
+    "Ringside did not answer at <url> within 3 s; see <hud.log path>" instead of a bare URL. Refusal
+    messages quote the value with repr (Sonnet A4).
 """
 from __future__ import annotations
 
@@ -50,6 +58,7 @@ import tempfile
 import unittest
 import urllib.error
 import urllib.request
+from dataclasses import replace as dataclasses_replace
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -150,6 +159,30 @@ class ValidationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             load_hud_host({"host": 8700})
 
+    def test_edge_literals(self) -> None:
+        for ok in ("127.0.0.0", "127.255.255.255", "100.64.0.0", "100.127.255.255"):
+            with self.subTest(ok=ok):
+                self.assertEqual(ok, validate_hud_host(ok))
+        for bad in ("100.63.255.255", "100.128.0.0", "0100.64.0.1", " 127.0.0.1", "127.0.0.1 ", "::ffff:127.0.0.1", "localhost", "127.0.0.1\n"):
+            with self.subTest(bad=bad):
+                with self.assertRaises(ValueError) as ctx:
+                    validate_hud_host(bad)
+                self.assertNotIn("\n", str(ctx.exception), "the refusal is one line even for a value with a newline")
+
+    def test_hud_table_shapes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "config.toml"
+            path.write_text(f'state_dir = "{tmp}/state"\n[hud]\nhost = "{TAILNET}"\n', encoding="utf-8")
+            cfg = AppConfig.load(path)
+            self.assertEqual((TAILNET, 8700, True), (cfg.hud_host, cfg.hud_port, cfg.hud_host_set))
+            path.write_text(f'state_dir = "{tmp}/state"\n[hud]\n', encoding="utf-8")
+            cfg = AppConfig.load(path)
+            self.assertEqual(("127.0.0.1", 8700, False), (cfg.hud_host, cfg.hud_port, cfg.hud_host_set))
+            path.write_text(f'state_dir = "{tmp}/state"\n[hud]\nhost = "127.0.0.1"\n', encoding="utf-8")
+            cfg = AppConfig.load(path)
+            self.assertEqual(("127.0.0.1", True), (cfg.hud_host, cfg.hud_host_set), "an explicitly written loopback counts as configured")
+        self.assertFalse(config(Path("/tmp/x")).hud_host_set)
+
     def test_app_config_load_applies_it(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "config.toml"
@@ -229,7 +262,9 @@ class ProbeAndSpawnTests(TempMixin, unittest.TestCase):
         self.assertIn("--no-open", argv)
         self.assertEqual("8712", argv[argv.index("--port") + 1])
         self.assertEqual(TAILNET, argv[argv.index("--host") + 1])
-        self.assertIn(f"Ringside: http://{TAILNET}:8712", out.getvalue())
+        # The probe never answers here, so the line is the no-answer form — still naming the tailnet URL.
+        self.assertIn(f"did not answer at http://{TAILNET}:8712", out.getvalue())
+        self.assertNotIn("127.0.0.1", out.getvalue())
 
     def test_loopback_default_spawn_argv_and_probe_are_unchanged_in_shape(self) -> None:
         # The byte-locked single-tab tests patch hud_is_alive with a ONE-argument lambda: the default
@@ -244,7 +279,59 @@ class ProbeAndSpawnTests(TempMixin, unittest.TestCase):
             ensure_hud_running(config(self.root, port=8713), open_browser=False)
         self.assertTrue(probes)
         self.assertEqual(1, len(spawned))
-        self.assertIn("Ringside: http://127.0.0.1:8713", out.getvalue())
+        self.assertIn("http://127.0.0.1:8713", out.getvalue())
+
+    def test_spawn_child_inherits_the_parents_config_and_a_silent_spawn_is_reported(self) -> None:
+        spawned: list[list[str]] = []
+        ringer.hud_is_alive = lambda port, host=DEFAULT_HUD_HOST: False  # type: ignore[assignment]
+        ringer.subprocess.Popen = lambda argv, **k: spawned.append(list(argv))  # type: ignore[assignment]
+        ringer.open_in_browser = lambda url: None  # type: ignore[assignment]
+        cfg_path = self.root / "config.toml"
+        cfg_path.write_text(f'state_dir = "{self.root}/state"\n[hud]\nport = 8715\nhost = "{TAILNET}"\n', encoding="utf-8")
+        cfg = AppConfig.load(cfg_path)
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            ensure_hud_running(cfg, open_browser=False)
+        argv = spawned[0]
+        self.assertEqual(str(cfg_path), argv[argv.index("--config") + 1])
+        self.assertLess(argv.index("--config"), argv.index("hud"), "the global --config flag precedes the subcommand")
+        self.assertEqual(TAILNET, argv[argv.index("--host") + 1])
+        self.assertIn(f"Ringside did not answer at http://{TAILNET}:8715 within 3 s; see {cfg.state_dir / 'hud.log'}", out.getvalue())
+        self.assertNotIn(f"Ringside: http://{TAILNET}:8715", out.getvalue())
+        # A config with no file path spawns without --config, and the same no-answer line applies.
+        spawned.clear()
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            ensure_hud_running(config(self.root, port=8716), open_browser=False)
+        self.assertNotIn("--config", spawned[0])
+        self.assertIn("Ringside did not answer at http://127.0.0.1:8716 within 3 s; see ", out.getvalue())
+
+    def test_explicit_loopback_config_plus_tailnet_flag_is_a_disagreement_before_any_probe(self) -> None:
+        def never(*a, **k):  # type: ignore[no-untyped-def]
+            raise AssertionError("the alive probe must not run before the disagreement refusal")
+
+        ringer.hud_is_alive = never  # type: ignore[assignment]
+        cfg = dataclasses_replace(config(self.root, host="127.0.0.1", port=8717), hud_host_set=True)
+        with self.assertRaises(ValueError) as ctx:
+            run_persistent_hud(cfg, port=None, open_viewer=False, host=TAILNET)
+        self.assertIn("disagree", str(ctx.exception))
+        self.assertIn(TAILNET, str(ctx.exception))
+        self.assertIn("127.0.0.1", str(ctx.exception))
+        # Not written in the config: the flag simply wins.
+        ringer.hud_is_alive = lambda port, host=DEFAULT_HUD_HOST: True  # type: ignore[assignment]
+        ringer.open_in_browser = lambda url: None  # type: ignore[assignment]
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            rc = run_persistent_hud(config(self.root, port=8717), port=None, open_viewer=False, host=TAILNET)
+        self.assertEqual(0, rc)
+        self.assertIn(f"already running: http://{TAILNET}:8717", out.getvalue())
+        # Equal values proceed.
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            rc = run_persistent_hud(dataclasses_replace(config(self.root, host=TAILNET, port=8718), hud_host_set=True),
+                                    port=None, open_viewer=False, host=TAILNET)
+        self.assertEqual(0, rc)
+        self.assertIn(f"already running: http://{TAILNET}:8718", out.getvalue())
 
     def test_run_persistent_hud_already_running_names_the_configured_host(self) -> None:
         ringer.hud_is_alive = lambda port, host=DEFAULT_HUD_HOST: True  # type: ignore[assignment]
@@ -312,6 +399,26 @@ class ServerTests(TempMixin, unittest.TestCase):
             self.assertEqual(1, len(opened))
         else:
             self.assertNotEqual(403, status)
+
+    def test_other_bind_errors_carry_their_strerror(self) -> None:
+        import errno
+        real = ringer.ReusableThreadingHTTPServer
+
+        def boom(*a, **k):  # type: ignore[no-untyped-def]
+            raise OSError(errno.EACCES, "Permission denied")
+
+        ringer.ReusableThreadingHTTPServer = boom  # type: ignore[assignment]
+        self.addCleanup(lambda: setattr(ringer, "ReusableThreadingHTTPServer", real))
+        server = PersistentHudServer(self.root / "state", preferred_port=80, open_viewer=False)
+        with self.assertRaises(RuntimeError) as ctx:
+            server.start()
+        msg = str(ctx.exception)
+        self.assertIn("Permission denied", msg)
+        self.assertIn("127.0.0.1:80", msg)
+        self.assertNotIn("already in use", msg)
+        self.assertNotIn("not an address on this machine", msg)
+        self.assertIsNone(server.httpd)
+        self.assertIsNone(server.thread)
 
     def test_bind_error_causes_are_distinguished(self) -> None:
         holder = socket.socket()
@@ -393,6 +500,14 @@ class CliTests(TempMixin, unittest.TestCase):
         self.assertIn("disagree", proc.stdout.lower())
         self.assertIn(TAILNET, proc.stdout)
         self.assertIn("127.0.0.1", proc.stdout)
+        self.assertNotIn("Ringside:", proc.stdout)
+        self.assert_nothing_listening()
+
+    def test_x2_explicit_loopback_config_plus_tailnet_flag_disagrees(self) -> None:
+        proc = self.hud(self.write_config("127.0.0.1"), "--host", TAILNET)
+        self.assertNotEqual(0, proc.returncode, proc.stdout)
+        self.assertIn("disagree", proc.stdout.lower())
+        self.assertIn(TAILNET, proc.stdout)
         self.assertNotIn("Ringside:", proc.stdout)
         self.assert_nothing_listening()
 

@@ -1078,6 +1078,7 @@ class AppConfig:
     update: UpdateConfig = field(default_factory=UpdateConfig)
     engine_bin_diagnostics: tuple[EngineBinDiagnostic, ...] = ()
     hud_host: str = DEFAULT_HUD_HOST
+    hud_host_set: bool = False
 
     @classmethod
     def load(cls, path: Path | None = None) -> "AppConfig":
@@ -1097,8 +1098,10 @@ class AppConfig:
         dashboard_port_base = int(data.get("dashboard_port_base", DEFAULT_DASHBOARD_PORT_BASE))
         if dashboard_port_base <= 0:
             raise ValueError("dashboard_port_base must be positive")
-        hud_port = load_hud_port(data.get("hud"))
-        hud_host = load_hud_host(data.get("hud"))
+        raw_hud = data.get("hud")
+        hud_port = load_hud_port(raw_hud)
+        hud_host = load_hud_host(raw_hud)
+        hud_host_set = isinstance(raw_hud, dict) and "host" in raw_hud
         identity_default = optional_string(data.get("identity_default"))
         hud_app_path = optional_path(data.get("hud_app_path"))
         allow_full_access = bool(data.get("allow_full_access", False))
@@ -1132,6 +1135,7 @@ class AppConfig:
             update=update_config,
             engine_bin_diagnostics=engine_bin_diagnostics,
             hud_host=hud_host,
+            hud_host_set=hud_host_set,
         )
 
 
@@ -1590,14 +1594,14 @@ def validate_hud_host(value: str) -> str:
     try:
         address = ipaddress.ip_address(value)
     except ValueError as exc:
-        raise ValueError(f"HUD host {value} is not an IPv4 address.") from exc
+        raise ValueError(f"HUD host {value!r} is not an IPv4 address.") from exc
     if not isinstance(address, ipaddress.IPv4Address):
-        raise ValueError(f"HUD host {value} is not an IPv4 address.")
+        raise ValueError(f"HUD host {value!r} is not an IPv4 address.")
     if address == ipaddress.IPv4Address("0.0.0.0"):
-        raise ValueError(f"HUD host {value} would listen on every interface.")
+        raise ValueError(f"HUD host {value!r} would listen on every interface.")
     if address.is_loopback or address in ipaddress.ip_network("100.64.0.0/10"):
         return value
-    raise ValueError(f"HUD host {value} must be loopback or Tailscale 100.64/10.")
+    raise ValueError(f"HUD host {value!r} must be loopback or Tailscale 100.64/10.")
 
 
 def load_hud_host(raw: Any) -> str:
@@ -11692,22 +11696,30 @@ def ensure_hud_running(config: AppConfig, *, open_browser: bool) -> None:
         return hud_is_alive(port, host=host)
 
     already_alive = alive()
+    answered_after_spawn = False
     if not already_alive:
         log_path = config.state_dir / "hud.log"
         with contextlib.suppress(Exception):
             log_path.parent.mkdir(parents=True, exist_ok=True)
+            argv = [
+                sys.executable,
+                str(Path(__file__).resolve()),
+            ]
+            if config.path is not None:
+                argv.extend(["--config", str(config.path)])
+            argv.extend(
+                [
+                    "hud",
+                    "--no-open",
+                    "--port",
+                    str(port),
+                    "--host",
+                    host,
+                ]
+            )
             with log_path.open("ab") as log_file:
                 subprocess.Popen(
-                    [
-                        sys.executable,
-                        str(Path(__file__).resolve()),
-                        "hud",
-                        "--no-open",
-                        "--port",
-                        str(port),
-                        "--host",
-                        host,
-                    ],
+                    argv,
                     stdout=log_file,
                     stderr=log_file,
                     stdin=subprocess.DEVNULL,
@@ -11715,11 +11727,15 @@ def ensure_hud_running(config: AppConfig, *, open_browser: bool) -> None:
                 )
         for _ in range(20):
             if alive():
+                answered_after_spawn = True
                 break
             time.sleep(0.15)
-    if open_browser and not already_alive and alive():
+    if open_browser and not already_alive and answered_after_spawn:
         open_in_browser(url)
-    print(f"Ringside: {url}", flush=True)
+    if already_alive or answered_after_spawn:
+        print(f"Ringside: {url}", flush=True)
+    else:
+        print(f"Ringside did not answer at {url} within 3 s; see {config.state_dir / 'hud.log'}", flush=True)
 
 
 def run_persistent_hud(
@@ -11730,7 +11746,7 @@ def run_persistent_hud(
     host: str | None = None,
 ) -> int:
     chosen_port = port if port is not None else config.hud_port
-    if host is not None and config.hud_host != DEFAULT_HUD_HOST and host != config.hud_host:
+    if host is not None and config.hud_host_set and host != config.hud_host:
         raise ValueError(
             f"hud --host {host} disagrees with the config's hud.host {config.hud_host}; "
             "fix one so there is a single source"
