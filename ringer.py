@@ -5,7 +5,9 @@ import argparse
 import asyncio
 import base64
 import contextlib
+import errno
 import hashlib
+import ipaddress
 import json
 import mimetypes
 import os
@@ -56,6 +58,7 @@ CHECK_TIMEOUT_S = 60
 SAMPLE_DIR_PREFIX = "ringer-sample-"
 DEFAULT_DASHBOARD_PORT_BASE = 8787
 DEFAULT_HUD_PORT = 8700
+DEFAULT_HUD_HOST = "127.0.0.1"
 DEFAULT_CATALOG_SOURCE = "https://openrouter.ai/api/v1/models"
 CATALOG_AUTO_REFRESH_MAX_AGE_S = 24 * 60 * 60
 CATALOG_FETCH_TIMEOUT_S = 5
@@ -1074,6 +1077,7 @@ class AppConfig:
     steering: SteeringConfig = field(default_factory=SteeringConfig)
     update: UpdateConfig = field(default_factory=UpdateConfig)
     engine_bin_diagnostics: tuple[EngineBinDiagnostic, ...] = ()
+    hud_host: str = DEFAULT_HUD_HOST
 
     @classmethod
     def load(cls, path: Path | None = None) -> "AppConfig":
@@ -1094,6 +1098,7 @@ class AppConfig:
         if dashboard_port_base <= 0:
             raise ValueError("dashboard_port_base must be positive")
         hud_port = load_hud_port(data.get("hud"))
+        hud_host = load_hud_host(data.get("hud"))
         identity_default = optional_string(data.get("identity_default"))
         hud_app_path = optional_path(data.get("hud_app_path"))
         allow_full_access = bool(data.get("allow_full_access", False))
@@ -1126,6 +1131,7 @@ class AppConfig:
             steering=steering_config,
             update=update_config,
             engine_bin_diagnostics=engine_bin_diagnostics,
+            hud_host=hud_host,
         )
 
 
@@ -1576,6 +1582,33 @@ def load_hud_port(raw: Any) -> int:
     if port <= 0:
         raise ValueError("hud.port must be positive")
     return port
+
+
+def validate_hud_host(value: str) -> str:
+    if not isinstance(value, str) or value == "":
+        raise ValueError(f"HUD host {value!r} is not an IPv4 address.")
+    try:
+        address = ipaddress.ip_address(value)
+    except ValueError as exc:
+        raise ValueError(f"HUD host {value} is not an IPv4 address.") from exc
+    if not isinstance(address, ipaddress.IPv4Address):
+        raise ValueError(f"HUD host {value} is not an IPv4 address.")
+    if address == ipaddress.IPv4Address("0.0.0.0"):
+        raise ValueError(f"HUD host {value} would listen on every interface.")
+    if address.is_loopback or address in ipaddress.ip_network("100.64.0.0/10"):
+        return value
+    raise ValueError(f"HUD host {value} must be loopback or Tailscale 100.64/10.")
+
+
+def load_hud_host(raw: Any) -> str:
+    if raw is None:
+        return DEFAULT_HUD_HOST
+    if not isinstance(raw, dict):
+        raise ValueError("hud must be a TOML table")
+    value = raw.get("host", DEFAULT_HUD_HOST)
+    if not isinstance(value, str):
+        raise ValueError(f"HUD host {value!r} is not an IPv4 address.")
+    return validate_hud_host(value)
 
 
 def configured_engine_names(raw: Any) -> tuple[str, ...]:
@@ -6238,10 +6271,12 @@ class PersistentHudServer:
         preferred_port: int = DEFAULT_HUD_PORT,
         *,
         open_viewer: bool = True,
+        host: str = DEFAULT_HUD_HOST,
     ) -> None:
         self.state_dir = state_dir
         self.preferred_port = preferred_port
         self.open_viewer = open_viewer
+        self.host = host
         self.httpd: ThreadingHTTPServer | None = None
         self.thread: threading.Thread | None = None
         self.port: int | None = None
@@ -6298,6 +6333,18 @@ class PersistentHudServer:
                     send_json_response(self, payload)
                     return
                 if path.startswith("/api/open-folder"):
+                    if not ipaddress.ip_address(server_ref.host).is_loopback:
+                        body = json.dumps(
+                            {"error": "open-folder is not available when Ringside is served off loopback"}
+                        ).encode("utf-8")
+                        send_response_body(
+                            self,
+                            HTTPStatus.FORBIDDEN,
+                            body,
+                            content_type="application/json; charset=utf-8",
+                            no_store=True,
+                        )
+                        return
                     query = urllib.parse.urlparse(path).query
                     params = urllib.parse.parse_qs(query)
                     name = (params.get("artifact") or [""])[0]
@@ -6363,16 +6410,28 @@ class PersistentHudServer:
                 return
 
         try:
-            self.httpd = ReusableThreadingHTTPServer(("127.0.0.1", preferred_port), Handler)
+            self.httpd = ReusableThreadingHTTPServer((self.host, preferred_port), Handler)
         except OSError as exc:
-            raise RuntimeError(
-                f"could not start Ringside on 127.0.0.1:{preferred_port}; "
-                "that port is already in use. Use --port to choose another port."
-            ) from exc
+            self.httpd = None
+            self.thread = None
+            if exc.errno == errno.EADDRNOTAVAIL:
+                message = (
+                    f"could not start Ringside on {self.host}:{preferred_port}; "
+                    f"{self.host} is not an address on this machine "
+                    "(check `tailscale ip -4` or use 127.0.0.1)"
+                )
+            elif exc.errno == errno.EADDRINUSE:
+                message = (
+                    f"could not start Ringside on {self.host}:{preferred_port}; "
+                    "that port is already in use. Use --port to choose another port."
+                )
+            else:
+                message = f"could not start Ringside on {self.host}:{preferred_port}; {exc.strerror}"
+            raise RuntimeError(message) from exc
         self.port = int(self.httpd.server_address[1])
         self.thread = threading.Thread(target=self.httpd.serve_forever, name="ringer-hud", daemon=True)
         self.thread.start()
-        url = f"http://127.0.0.1:{self.port}"
+        url = f"http://{self.host}:{self.port}"
         if self.open_viewer:
             with contextlib.suppress(Exception):
                 webbrowser.open(url)
@@ -9619,7 +9678,10 @@ class RingerRunner:
                 if self.state_writer.artifact is not None and self.state_writer.artifact.enabled:
                     results_page = artifact_live_path(self.state_writer.state_dir, self.manifest.run_name)
                     print(f"\nYour results: {results_page}")
-                    print("Open it in a browser, or run './ringer.py hud' for the full Ringside view (http://127.0.0.1:8700).")
+                    print(
+                        "Open it in a browser, or run './ringer.py hud' "
+                        f"for the full Ringside view (http://{self.config.hud_host}:{self.config.hud_port})."
+                    )
 
     async def kill_all_workers(self) -> None:
         procs = list(self.active_processes.values())
@@ -11496,9 +11558,9 @@ async def run_manifest(
         unregister_active_run(runner.run_id)
 
 
-def hud_is_alive(port: int) -> bool:
+def hud_is_alive(port: int, host: str = DEFAULT_HUD_HOST) -> bool:
     try:
-        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/runs", timeout=0.4) as response:
+        with urllib.request.urlopen(f"http://{host}:{port}/api/runs", timeout=0.4) as response:
             return response.status == 200
     except Exception:
         return False
@@ -11621,33 +11683,65 @@ def ensure_hud_running(config: AppConfig, *, open_browser: bool) -> None:
     fight: if no hud answers on the configured port, spawn one detached.
     """
     port = config.hud_port
-    url = f"http://127.0.0.1:{port}"
-    already_alive = hud_is_alive(port)
+    host = config.hud_host
+    url = f"http://{host}:{port}"
+
+    def alive() -> bool:
+        if host == DEFAULT_HUD_HOST:
+            return hud_is_alive(port)
+        return hud_is_alive(port, host=host)
+
+    already_alive = alive()
     if not already_alive:
         log_path = config.state_dir / "hud.log"
         with contextlib.suppress(Exception):
             log_path.parent.mkdir(parents=True, exist_ok=True)
             with log_path.open("ab") as log_file:
                 subprocess.Popen(
-                    [sys.executable, str(Path(__file__).resolve()), "hud", "--no-open", "--port", str(port)],
+                    [
+                        sys.executable,
+                        str(Path(__file__).resolve()),
+                        "hud",
+                        "--no-open",
+                        "--port",
+                        str(port),
+                        "--host",
+                        host,
+                    ],
                     stdout=log_file,
                     stderr=log_file,
                     stdin=subprocess.DEVNULL,
                     start_new_session=True,
                 )
         for _ in range(20):
-            if hud_is_alive(port):
+            if alive():
                 break
             time.sleep(0.15)
-    if open_browser and not already_alive and hud_is_alive(port):
+    if open_browser and not already_alive and alive():
         open_in_browser(url)
     print(f"Ringside: {url}", flush=True)
 
 
-def run_persistent_hud(config: AppConfig, *, port: int | None, open_viewer: bool) -> int:
+def run_persistent_hud(
+    config: AppConfig,
+    *,
+    port: int | None,
+    open_viewer: bool,
+    host: str | None = None,
+) -> int:
     chosen_port = port if port is not None else config.hud_port
-    if hud_is_alive(chosen_port):
-        url = f"http://127.0.0.1:{chosen_port}"
+    if host is not None and config.hud_host != DEFAULT_HUD_HOST and host != config.hud_host:
+        raise ValueError(
+            f"hud --host {host} disagrees with the config's hud.host {config.hud_host}; "
+            "fix one so there is a single source"
+        )
+    effective_host = host or config.hud_host
+    if effective_host == DEFAULT_HUD_HOST:
+        already_alive = hud_is_alive(chosen_port)
+    else:
+        already_alive = hud_is_alive(chosen_port, host=effective_host)
+    if already_alive:
+        url = f"http://{effective_host}:{chosen_port}"
         print(f"Ringside is already running: {url}")
         if open_viewer:
             open_in_browser(url)
@@ -11656,6 +11750,7 @@ def run_persistent_hud(config: AppConfig, *, port: int | None, open_viewer: bool
         config.state_dir,
         preferred_port=chosen_port,
         open_viewer=open_viewer,
+        host=effective_host,
     )
     server.model_log_path = config.eval.jsonl_path
     server.default_model_log_path = config.eval.jsonl_path
@@ -11677,6 +11772,13 @@ def run_persistent_hud(config: AppConfig, *, port: int | None, open_viewer: bool
         return 0
     finally:
         server.stop()
+
+
+def hud_host_argument(value: str) -> str:
+    try:
+        return validate_hud_host(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from exc
 
 
 
@@ -11846,7 +11948,15 @@ def build_parser() -> argparse.ArgumentParser:
 
     hud_parser = subparsers.add_parser("hud", help="start the persistent Ringside page in your browser")
     hud_parser.add_argument("--config", type=Path, default=argparse.SUPPRESS, help=argparse.SUPPRESS)
-    hud_parser.add_argument("--port", type=int, help=f"port to bind on 127.0.0.1 (default: {DEFAULT_HUD_PORT})")
+    hud_parser.add_argument("--port", type=int, help=f"port to bind on the hud host (default: {DEFAULT_HUD_PORT})")
+    hud_parser.add_argument(
+        "--host",
+        type=hud_host_argument,
+        help=(
+            "address to bind: 127.0.0.1 (default) or this machine's Tailscale 100.x address; "
+            "must agree with [hud] host in the config"
+        ),
+    )
     hud_parser.add_argument("--no-open", action="store_true", help="start the server without opening a browser")
 
     db_parser = subparsers.add_parser("db", help="manage the derived SQLite read model")
@@ -11978,6 +12088,7 @@ def main(argv: list[str] | None = None) -> int:
                 config,
                 port=args.port,
                 open_viewer=not args.no_open,
+                host=args.host,
             )
         if args.command == "ask":
             if args.timeout_s <= 0:
