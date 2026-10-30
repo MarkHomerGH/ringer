@@ -2157,3 +2157,6 @@ Same brief, same hash-locked gate (110 cases), same executed check per lane; wor
 - **z-ai/glm-5.3 (opencode/OpenRouter), code-fix exploration on non-NDA work:** **4/5 first try**, each run 2–5 min. Round 4 attempt 1 exported an empty patch (no edits made), and the retry passed. Promote GLM 5.3 for small code-fix lanes with a strong executed gate.
 - **tencent/hy3 (opencode):** one review seat this run; outcome is in the run JSON, so no new judgment here.
 - **nvidia/nemotron-3-super-120b:free:** did not run (provider 404 `Function … Not found for account`). This was a non-model failure, so no demotion.
+
+### 2026-10-30 — homer-agents personal-folder-sharing (one-task code-fix)
+- **gpt-6-astra high (codex), code-fix:** 0/2 PASS on the check, **a boss defect, zero shims.** The brief owned three files but two assertions in an un-owned gate suite (`test_task34_lane_b1_gate.py`) pinned the revoked rule ("Personal requires Beth"); the boss probe passed 0 failures, 231/233 tests green. Both attempts left production byte-identical on retry and wrote the exact conflict + the two-line fix under Deviations (81k tokens, 5 min). Lesson for the boss: when a ruling revokes a rule, dry-run the PROBE's rule against every suite in the check before launch (the RED run only proved the old code failed), and own any test that pins the revoked rule.
